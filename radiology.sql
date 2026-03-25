@@ -1,0 +1,807 @@
+
+-- MODALITY NAME, CPT CODES, CPT DESCRIPTION, MULTIPLE CPT CODES
+  
+WITH base AS (
+    SELECT
+        study_name,
+
+        -- Extract CPT / internal ID
+        CASE
+            -- Priority 0: Explicit CPT mention
+            WHEN study_name REGEXP '\\bCPT\\s*[0-9]{5}\\b'
+                THEN REGEXP_SUBSTR(study_name, '[0-9]{5}')
+
+            -- Priority 1: Standalone 5-digit CPT
+            WHEN study_name REGEXP '(^|[^0-9])[0-9]{5}([^0-9]|$)'
+                THEN REGEXP_REPLACE(
+                        REGEXP_SUBSTR(study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)'),
+                        '[^0-9]', '')
+
+            -- Priority 2: Internal IDs (AHCIMG, RAM etc.)
+            WHEN study_name REGEXP '[A-Za-z]+[0-9]{6,}'
+                THEN REGEXP_SUBSTR(study_name, '[A-Za-z]+[0-9]{6,}')
+
+            ELSE NULL
+        END AS extracted_cpt_code,
+
+        -- Extract SECOND CPT code (for dual modality / dual CPT cases)
+        REGEXP_REPLACE(
+            REGEXP_SUBSTR(study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 2),
+            '[^0-9]', ''
+        ) AS extracted_cpt_code_2
+
+    FROM rgd_udm_silver.radiology
+)
+
+SELECT DISTINCT
+    b.study_name,
+
+    -- PRIMARY EXTRACTED CPT CODE
+    b.extracted_cpt_code,
+
+    -- CPT CODE 1 STANDARDIZED
+    CASE 
+        WHEN b.extracted_cpt_code IS NOT NULL 
+             AND b.extracted_cpt_code NOT REGEXP '^[0-9]{5}$'
+            THEN 'Flagged'
+        WHEN cpt1.PROCEDURECODE IS NOT NULL 
+            THEN cpt1.PROCEDURECODE
+        ELSE 'Flagged'
+    END AS cpt_code_std,
+
+    -- CPT DESCRIPTION 1 STANDARDIZED
+    CASE 
+        WHEN cpt1.PROCEDURECODE IS NULL THEN 'Flagged'
+        WHEN cpt1.COMMONDESCRIPTION IS NOT NULL THEN cpt1.COMMONDESCRIPTION
+        WHEN cpt1.DESCRIPTION IS NOT NULL THEN cpt1.DESCRIPTION
+        ELSE 'Flagged'
+    END AS cpt_description_std,
+
+    -- SECOND EXTRACTED CPT CODE (only for dual CPT cases)
+    CASE
+        WHEN b.extracted_cpt_code_2 IS NOT NULL
+            THEN b.extracted_cpt_code_2
+        ELSE NULL
+    END AS extracted_cpt_code_2,
+
+    -- CPT CODE 2 STANDARDIZED
+    CASE
+        WHEN b.extracted_cpt_code_2 IS NULL
+            THEN NULL
+        WHEN cpt2.PROCEDURECODE IS NOT NULL
+            THEN cpt2.PROCEDURECODE
+        ELSE 'Flagged'
+    END AS cpt_code_2_std,
+
+    -- CPT DESCRIPTION 2 STANDARDIZED
+    CASE
+        WHEN b.extracted_cpt_code_2 IS NULL
+            THEN NULL
+        WHEN cpt2.PROCEDURECODE IS NULL
+            THEN 'Flagged'
+        WHEN cpt2.COMMONDESCRIPTION IS NOT NULL
+            THEN cpt2.COMMONDESCRIPTION
+        WHEN cpt2.DESCRIPTION IS NOT NULL
+            THEN cpt2.DESCRIPTION
+        ELSE 'Flagged'
+    END AS cpt_description_2_std,
+
+    -- CPT COUNT FLAG
+    CASE
+        WHEN b.extracted_cpt_code_2 IS NOT NULL
+            THEN 'Two CPT Codes Present'
+        WHEN b.extracted_cpt_code IS NOT NULL
+            AND b.extracted_cpt_code REGEXP '^[0-9]{5}$'
+            THEN 'Single CPT Code'
+        WHEN b.extracted_cpt_code IS NOT NULL
+            THEN 'Internal Identifier Only'
+        ELSE 'No CPT Code'
+    END AS cpt_count_flag,
+
+    -- PRIMARY MODALITY
+    CASE
+        WHEN b.study_name REGEXP '\\bCT\\b|\\bCAT\\b|\\bNCT\\b|\\bLDCT\\b|\\bCTA\\b|\\bCTV\\b|\\bCTAC\\b|\\bCTC\\b|\\bCTP\\b'
+            THEN 'Computed Tomography'
+        WHEN b.study_name REGEXP '\\bPET\\b|\\bPT\\b'
+            THEN 'Positron Emission Tomography'
+        WHEN b.study_name REGEXP '\\bMRI\\b|\\bMRCP\\b|\\bMRV\\b|\\bTMRI\\b|\\b3TMRI\\b|\\bzzMRA\\b|\\bMRA\\b|\\bMR\\b'
+            THEN 'Magnetic Resonance'
+        WHEN b.study_name REGEXP '\\bMA\\b'
+            THEN 'Magnetic Resonance Angiography'
+        WHEN b.study_name REGEXP '\\bMAM\\b|\\bMAMM\\b|\\bMAMMO\\b|\\bMMAMMO\\b|\\bMG\\b|\\bMAMMOGRAM\\b|\\bMAMMOGRAPHY\\b|\\bDEXA\\b|\\bDXA\\b'
+            THEN 'Mammography'
+        WHEN b.study_name REGEXP '\\bUS\\b|\\bULTRASOUND\\b|\\bUSV\\b|\\bBI US\\b|\\bOB US\\b'
+            THEN 'Ultrasound'
+        WHEN b.study_name REGEXP '\\bXA\\b|\\bANG\\b|\\bANGIO\\b'
+            THEN 'X-Ray Angiography'
+        WHEN b.study_name REGEXP '\\bCR\\b'
+            THEN 'Computed Radiography'
+        WHEN b.study_name REGEXP '\\bDX\\b|\\bDR\\b'
+            THEN 'Digital Radiography'
+        WHEN b.study_name REGEXP '\\bXR\\b|\\bX-RAY\\b|\\bXRAY\\b|\\bXRY\\b'
+            THEN 'X-Ray'
+        WHEN b.study_name REGEXP '\\bRF\\b|\\bFL\\b|\\bFLUORO\\b|\\bFLU\\b'
+            THEN 'Radio Fluoroscopy'
+        WHEN b.study_name REGEXP '\\bFS\\b'
+            THEN 'Fundoscopy'
+        WHEN b.study_name REGEXP '\\bNM\\b'
+            THEN 'Nuclear Medicine'
+        WHEN b.study_name REGEXP '\\bECHO\\b|\\bECHOCARDIOGRAM\\b'
+            THEN 'Echocardiography'
+        WHEN b.study_name REGEXP '\\bECG\\b|\\bEKG\\b'
+            THEN 'Electrocardiography'
+        WHEN b.study_name REGEXP '\\bEEG\\b|\\bELECTROCEPHANLOGRAM\\b'
+            THEN 'Electroencephalogram'
+        WHEN b.study_name REGEXP '\\bENDOSCOPY\\b'
+            THEN 'Endoscopy'
+        WHEN b.study_name REGEXP '\\bCD\\b'
+            THEN 'Color Flow Doppler'
+        WHEN b.study_name REGEXP '\\bTCD\\b|\\bDUPLEX\\b|\\bDOPPLER\\b'
+            THEN 'Duplex Doppler'
+        WHEN b.study_name REGEXP '\\bAUDIO\\b|\\bAUDIOMETRY\\b|\\bAUDITORY\\b|\\bHEAR\\b|\\bHEARING\\b|\\bEVOKED POTENTIAL\\b|\\bAUDIOLOGIC\\b|\\bAUDIOGRAM\\b|\\bACOUSTIC\\b'
+            THEN 'Audio'
+        WHEN b.study_name REGEXP '\\bRP\\b'
+            THEN 'Radiotherapy Plan'
+        WHEN b.study_name REGEXP '\\bRT\\b|\\bRAD\\b'
+            THEN 'Radiographic Imaging'
+        WHEN b.study_name REGEXP '\\bIR\\b|\\bINTERVENTIONAL RADIOLOGY\\b'
+            THEN 'Interventional Radiology'
+        WHEN b.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b'
+            THEN 'Biopsy'
+        WHEN b.study_name REGEXP '\\bCPT\\b'
+            THEN 'Culposcopy'
+        WHEN b.study_name REGEXP '\\bVL\\b|\\bOHS\\b|\\bSPECT\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b'
+            THEN 'Other'
+        WHEN cpt1.PROCEDURECODE IS NOT NULL
+            THEN 'CPT Matched - See cpt_description_std'
+        ELSE 'Other'
+    END AS modality,
+
+    -- COMBINED MODALITY
+    CASE
+        WHEN b.study_name REGEXP '\\bPET/CT\\b|\\bPET CT\\b'
+            THEN 'Positron Emission Tomography / Computed Tomography'
+        WHEN b.study_name REGEXP '\\bXR/RF\\b'
+            THEN 'X-Ray / Radio Fluoroscopy'
+        WHEN b.study_name REGEXP '\\bXANR/RF\\b'
+            THEN 'X-Ray Angiography / Radio Fluoroscopy'
+        WHEN b.study_name REGEXP '\\bUS DOPPLER\\b|\\bDOPPLER\\b'
+            THEN 'Ultrasound / Duplex Doppler'
+        WHEN b.study_name REGEXP '\\bUS DUPLEX\\b|\\bDUPLEX\\b'
+            THEN 'Ultrasound / Duplex Doppler'
+        WHEN b.study_name REGEXP '\\bUS ECHOCARDIOGRAM\\b'
+            THEN 'Ultrasound / Echocardiography'
+        WHEN b.study_name REGEXP '\\bXA US\\b'
+            THEN 'X-Ray Angiography / Ultrasound'
+        WHEN b.study_name REGEXP '\\bCT\\b|\\bCAT\\b|\\bNCT\\b|\\bLDCT\\b|\\bCTA\\b|\\bCTV\\b|\\bCTAC\\b|\\bCTC\\b|\\bCTP\\b'
+            THEN 'Computed Tomography'
+        WHEN b.study_name REGEXP '\\bPET\\b|\\bPT\\b'
+            THEN 'Positron Emission Tomography'
+        WHEN b.study_name REGEXP '\\bMRI\\b|\\bMRCP\\b|\\bMRV\\b|\\bTMRI\\b|\\b3TMRI\\b|\\bzzMRA\\b|\\bMRA\\b|\\bMR\\b'
+            THEN 'Magnetic Resonance'
+        WHEN b.study_name REGEXP '\\bMA\\b'
+            THEN 'Magnetic Resonance Angiography'
+        WHEN b.study_name REGEXP '\\bMAM\\b|\\bMAMM\\b|\\bMAMMO\\b|\\bMMAMMO\\b|\\bMG\\b|\\bMAMMOGRAM\\b|\\bMAMMOGRAPHY\\b|\\bDEXA\\b|\\bDXA\\b'
+            THEN 'Mammography'
+        WHEN b.study_name REGEXP '\\bUS\\b|\\bULTRASOUND\\b|\\bUSV\\b|\\bBI US\\b|\\bOB US\\b'
+            THEN 'Ultrasound'
+        WHEN b.study_name REGEXP '\\bXA\\b|\\bANG\\b|\\bANGIO\\b'
+            THEN 'X-Ray Angiography'
+        WHEN b.study_name REGEXP '\\bCR\\b'
+            THEN 'Computed Radiography'
+        WHEN b.study_name REGEXP '\\bDX\\b|\\bDR\\b'
+            THEN 'Digital Radiography'
+        WHEN b.study_name REGEXP '\\bXR\\b|\\bX-RAY\\b|\\bXRAY\\b|\\bXRY\\b'
+            THEN 'X-Ray'
+        WHEN b.study_name REGEXP '\\bRF\\b|\\bFL\\b|\\bFLUORO\\b|\\bFLU\\b'
+            THEN 'Radio Fluoroscopy'
+        WHEN b.study_name REGEXP '\\bFS\\b'
+            THEN 'Fundoscopy'
+        WHEN b.study_name REGEXP '\\bNM\\b'
+            THEN 'Nuclear Medicine'
+        WHEN b.study_name REGEXP '\\bECHO\\b|\\bECHOCARDIOGRAM\\b'
+            THEN 'Echocardiography'
+        WHEN b.study_name REGEXP '\\bECG\\b|\\bEKG\\b'
+            THEN 'Electrocardiography'
+        WHEN b.study_name REGEXP '\\bEEG\\b|\\bELECTROCEPHANLOGRAM\\b'
+            THEN 'Electroencephalogram'
+        WHEN b.study_name REGEXP '\\bENDOSCOPY\\b'
+            THEN 'Endoscopy'
+        WHEN b.study_name REGEXP '\\bCD\\b'
+            THEN 'Color Flow Doppler'
+        WHEN b.study_name REGEXP '\\bTCD\\b|\\bDUPLEX\\b|\\bDOPPLER\\b'
+            THEN 'Duplex Doppler'
+        WHEN b.study_name REGEXP '\\bAUDIO\\b|\\bAUDIOMETRY\\b|\\bAUDITORY\\b|\\bHEAR\\b|\\bHEARING\\b|\\bEVOKED POTENTIAL\\b|\\bAUDIOLOGIC\\b|\\bAUDIOGRAM\\b|\\bACOUSTIC\\b'
+            THEN 'Audio'
+        WHEN b.study_name REGEXP '\\bRP\\b'
+            THEN 'Radiotherapy Plan'
+        WHEN b.study_name REGEXP '\\bRT\\b|\\bRAD\\b'
+            THEN 'Radiographic Imaging'
+        WHEN b.study_name REGEXP '\\bIR\\b|\\bINTERVENTIONAL RADIOLOGY\\b'
+            THEN 'Interventional Radiology'
+        WHEN b.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b'
+            THEN 'Biopsy'
+        WHEN b.study_name REGEXP '\\bCPT\\b'
+            THEN 'Culposcopy'
+        WHEN b.study_name REGEXP '\\bVL\\b|\\bOHS\\b|\\bSPECT\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b'
+            THEN 'Other'
+        WHEN cpt1.PROCEDURECODE IS NOT NULL
+            THEN 'CPT Matched - See cpt_description_std'
+        ELSE 'Other'
+    END AS modality_combined
+
+FROM base b
+
+-- JOIN FIRST CPT CODE
+LEFT JOIN tncpa.PROCEDURECODEREFERENCE cpt1
+    ON b.extracted_cpt_code = cpt1.PROCEDURECODE
+
+-- JOIN SECOND CPT CODE
+LEFT JOIN tncpa.PROCEDURECODEREFERENCE cpt2
+    ON b.extracted_cpt_code_2 = cpt2.PROCEDURECODE;
+
+
+
+-- MULTIPLE CPT CODES 
+  
+SELECT DISTINCT
+    r.study_name,
+
+    -- FIRST CPT CODE EXTRACTED
+    REGEXP_REPLACE(
+        REGEXP_SUBSTR(r.study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 1),
+        '[^0-9]', ''
+    ) AS extarcted_cpt_code_1,
+
+    -- FIRST CPT CODE STANDARDIZED
+    CASE
+        WHEN cpt1.PROCEDURECODE IS NOT NULL THEN cpt1.PROCEDURECODE
+        ELSE 'Flagged'
+    END AS cpt_code_1_std,
+
+    -- FIRST CPT DESCRIPTION
+    CASE
+        WHEN cpt1.COMMONDESCRIPTION IS NOT NULL THEN cpt1.COMMONDESCRIPTION
+        WHEN cpt1.DESCRIPTION IS NOT NULL THEN cpt1.DESCRIPTION
+        ELSE 'Flagged'
+    END AS cpt_description_1_std,
+
+    -- SECOND CPT CODE EXTRACTED
+    REGEXP_REPLACE(
+        REGEXP_SUBSTR(r.study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 2),
+        '[^0-9]', ''
+    ) AS extarcted_cpt_code_2,
+
+    -- SECOND CPT CODE STANDARDIZED
+    CASE
+        WHEN cpt2.PROCEDURECODE IS NOT NULL THEN cpt2.PROCEDURECODE
+        ELSE 'Flagged'
+    END AS cpt_code_2_std,
+
+    -- SECOND CPT DESCRIPTION
+    CASE
+        WHEN cpt2.COMMONDESCRIPTION IS NOT NULL THEN cpt2.COMMONDESCRIPTION
+        WHEN cpt2.DESCRIPTION IS NOT NULL THEN cpt2.DESCRIPTION
+        ELSE 'Flagged'
+    END AS cpt_description_2_std,
+
+    -- FLAG
+    CASE
+        WHEN REGEXP_REPLACE(
+                REGEXP_SUBSTR(r.study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 2),
+                '[^0-9]', ''
+             ) IS NOT NULL
+        THEN 'Two CPT Codes Present'
+        ELSE 'Single CPT Code'
+    END AS cpt_count_flag
+
+FROM rgd_udm_silver.radiology r
+
+-- JOIN FIRST CPT CODE
+LEFT JOIN tncpa.PROCEDURECODEREFERENCE cpt1
+    ON REGEXP_REPLACE(
+        REGEXP_SUBSTR(r.study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 1),
+        '[^0-9]', ''
+    ) = cpt1.PROCEDURECODE
+
+-- JOIN SECOND CPT CODE
+LEFT JOIN tncpa.PROCEDURECODEREFERENCE cpt2
+    ON REGEXP_REPLACE(
+        REGEXP_SUBSTR(r.study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 2),
+        '[^0-9]', ''
+    ) = cpt2.PROCEDURECODE
+
+-- ONLY SHOW ROWS WHERE TWO CPT CODES ARE PRESENT
+WHERE REGEXP_REPLACE(
+        REGEXP_SUBSTR(r.study_name, '(^|[^0-9])[0-9]{5}([^0-9]|$)', 1, 2),
+        '[^0-9]', ''
+      ) IS NOT NULL;
+
+
+
+      
+-- BODY PART, CONTRAST TYPE, LATERALITY
+
+SELECT DISTINCT
+    study_name,
+
+    -- BODY PART
+    CASE
+        -- MULTI BODY PARTS FIRST
+
+        -- Chest + Abdomen + Pelvis
+        WHEN UPPER(study_name) REGEXP 'CHEST.*(ABDOMEN|ABD).*(PELVIS|PELV)|CHEST/ABD/PELVIS|CHEST ABDOMEN PELVIS|CHEST\\+ABD.*PELVIS'
+            THEN 'Chest, Abdomen, Pelvis'
+
+        -- Chest + Abdomen
+        WHEN UPPER(study_name) REGEXP 'CHEST.*(ABDOMEN|ABD)|CHEST\\+ABD'
+            THEN 'Chest, Abdomen'
+
+        -- Chest + Thorax
+        WHEN UPPER(study_name) REGEXP 'CHEST.*THORAX|CHEST/THORAX'
+            THEN 'Chest, Thorax'
+
+        -- Abdomen + Pelvis
+        WHEN UPPER(study_name) REGEXP '(ABDOMEN|ABD).*(PELVIS|PELV)|(PELVIS|PELV).*(ABDOMEN|ABD)'
+            THEN 'Abdomen, Pelvis'
+
+        -- Head + Neck
+        WHEN UPPER(study_name) REGEXP 'HEAD.*NECK|NECK.*HEAD|NECK/HEAD'
+            THEN 'Head, Neck'
+
+        -- Orbit + Face + Neck
+        WHEN UPPER(study_name) REGEXP 'ORB.*FAC.*NCK|ORBIT.*FACE.*NECK|ORBIT/FACE/NK'
+            THEN 'Orbit, Face, Neck'
+
+        -- Orbit + Sella
+        WHEN UPPER(study_name) REGEXP 'ORBIT.*SELLA|ORBIT\\+SELLA|ORBIT SELLA POSS|ORBIT\\+SELLA\\+PF'
+            THEN 'Orbit, Sella'
+
+        -- Thoracic + Lumbar Spine
+        WHEN UPPER(study_name) REGEXP 'THORACO.?LUMBAR|THORACOLUMBAR|THOR.*LUM[B]|THOR\\+LU[MB]'
+            THEN 'Thoracic Spine, Lumbar Spine'
+
+        -- Lumbo-Sacral
+        WHEN UPPER(study_name) REGEXP 'LUMBO.?SACRAL|LUMB.?SACR|LUMBO SACRAL|LUMBOSACRAL'
+            THEN 'Lumbar Spine, Sacrum'
+
+        -- Sacrum + Coccyx
+        WHEN UPPER(study_name) REGEXP 'SACRUM.*(AND|\\+|/).?COCCYX|SACRUM COCCYX|SACRUM/COCCYX'
+            THEN 'Sacrum, Coccyx'
+
+        -- Facial / Sinus combined
+        WHEN UPPER(study_name) REGEXP 'FACIAL.*SINUS|SINUS.*FACIAL|FACIAL/SINUS|MAX.*FAC.*SIN|MAXILLOFACIAL|MAXIOFACIAL|MAXFACIAL|MAXILLA|SINUS FACIAL|MAX/FAC/SIN|MAXFACIAL BONES'
+            THEN 'Facial Bones, Sinuses'
+
+        -- Tibia + Fibula
+        WHEN UPPER(study_name) REGEXP 'TIB.?FIB|TIBIA.?FIBUL|TIBIA AND FIBULA|TIBIA/FIBULA|TIB & FIB|TIB\\+FIBULA|TIBIA\\+FIBULA|TM JOINTS'
+            THEN 'Tibia, Fibula'
+
+        -- Forearm / Radius / Ulna
+        WHEN UPPER(study_name) REGEXP 'FOREARM.*RADIUS|FOREARM.*ULNA|RADIUS.*ULNA|FOREARM/RADIUS'
+            THEN 'Forearm, Radius, Ulna'
+
+        -- Carotid / Neck
+        WHEN UPPER(study_name) REGEXP 'CAROTID.*NECK|CAROTID/NECK|VASC CAROTID|CAROTIDS'
+            THEN 'Carotid, Neck'
+
+        -- Thyroid / Neck
+        WHEN UPPER(study_name) REGEXP 'THYROID.*NECK|THY.*NECK|THYROID/NECK'
+            THEN 'Thyroid, Neck'
+
+        -- Liver + Gallbladder + Pancreas
+        WHEN UPPER(study_name) REGEXP 'LIVER.*GALLBLADDER.*PANCREAS|LIVER GALLBLADDER PANCREAS'
+            THEN 'Liver, Gallbladder, Pancreas'
+
+        -- Ilium + Sternum + Rib
+        WHEN UPPER(study_name) REGEXP 'ILIUM.*STERNUM.*RIB|ILIUM STERNUM RIB'
+            THEN 'Ilium, Sternum, Rib'
+
+        -- AC Joints / Acromioclavicular
+        WHEN UPPER(study_name) REGEXP 'AC JOINTS|ACROMIOCLAVICULAR JOINTS|STERNOCLAVIC|STERNOCLAVICULAR'
+            THEN 'Acromioclavicular Joints'
+
+        -- TMJ / Temporomandibular
+        WHEN UPPER(study_name) REGEXP '\\bTMJ\\b|TEMPOROMANDIBULAR|TEMPOROMANDIBULAR JOINT|TMJ BILATERAL'
+            THEN 'Temporomandibular Joint'
+
+        -- Vascular Lower Extremity
+        WHEN UPPER(study_name) REGEXP 'VASC EXT LOWR|VASC EXTREMITY LOWER|LOWER EXTREMITY VENOUS|LOWER EXT VENOUS|LOWER EXTREMITY ARTERIES|LOWER EXT ARTERIAL|ARTERIAL LOW.*EXT|ARTERIAL LOWER EXT|ARTERIAL LOWER EXTREMITY|LOWER EXTREMITY ARTERI'
+            THEN 'Lower Extremity (Vascular)'
+
+        -- Vascular Upper Extremity
+        WHEN UPPER(study_name) REGEXP 'UPPER EXTREMITY VENOUS|UPPER EXT.*ARTERIAL|ARTERIAL UPPER EXT|ARTERIAL UPPER EXTREMITY|UPPER EXTREMITY ARTERIAL|LT UPPER VENOUS|UPPER OR LOWER EXT ARTERIAL'
+            THEN 'Upper Extremity (Vascular)'
+
+        -- Vascular Transcranial
+        WHEN UPPER(study_name) REGEXP 'VASC TRANSCRANIAL|TRANS CRANIAL|TRANSCRANIAL|VASC JUGULAR|JUGULAR.*SUBCLAVIAN'
+            THEN 'Transcranial (Vascular)'
+
+        -- Cerebral Arteries
+        WHEN UPPER(study_name) REGEXP 'CEREBRAL ARTERIES|EXTRACRANIAL ARTERIES'
+            THEN 'Cerebral Arteries'
+
+        -- Lower Extremity (general — all variants)
+        WHEN UPPER(study_name) REGEXP '\\bLOWER EXTREMIT|\\bLOWER EXT\\b|\\bLOWER EXTR\\b|\\bLWR EXT\\b|\\bLE\\b|\\bLOW EXT\\b|\\bLEFT LOWER EXTREMITY\\b|\\bRIGHT LOWER EXTREMITY\\b|LOWER EXT.*NOT.*JNT|LOWER EXT.*NON|LWR EXT NOT JT|LOWER LEG|LOWER BACK|EXTREMITY LOWER|EXTREMITY.*LOWER'
+            THEN 'Lower Extremity'
+
+        -- Upper Extremity (general — all variants)
+        WHEN UPPER(study_name) REGEXP '\\bUPPER EXTREMIT|\\bUPPER EXT\\b|\\bUPR.*EXT\\b|\\bUPR/LXTR\\b|UP EXT JT|LEFT EXTREMITY.*UPPER|UPPER EXT.*JOINT|UPPER EXT NON JOINT|UPPER EXTREMITY.*MUSCULO|EXTREMITY UPPER|EXTREMITY.*UPPER|LEFT EXTREMITY JOINT UPPER|RIGHT EXTREMITY JOINT LOWER'
+            THEN 'Upper Extremity'
+
+        -- Brachial Plexus
+        WHEN UPPER(study_name) REGEXP 'BRACHIAL PLEXUS|RIGHT BRACHIAL PLEXUS'
+            THEN 'Brachial Plexus'
+
+        -- Spinal Canal / Cord
+        WHEN UPPER(study_name) REGEXP 'SPINAL CANAL|SPINAL CORD|THORACIC SPINAL CORD|SPINAL CORD DORSAL'
+            THEN 'Spinal Canal'
+
+        -- Sacroiliac
+        WHEN UPPER(study_name) REGEXP 'SACROILIAC|SACROILIAC JOINT|SACROILIAC JNTS|SI JOINT'
+            THEN 'Sacroiliac Joint'
+
+        -- SINGLE BODY PARTS (alphabetical)
+
+        -- Abdomen
+        WHEN UPPER(study_name) REGEXP '\\bABDOMEN\\b|\\bABD\\b|\\bABDOMINAL\\b'
+            THEN 'Abdomen'
+
+        -- Ankle
+        WHEN UPPER(study_name) REGEXP '\\bANKLE\\b|\\bANK\\b'
+            THEN 'Ankle'
+
+        -- Aorta
+        WHEN UPPER(study_name) REGEXP '\\bAORTA\\b|\\bTHORACIC AORTA\\b'
+            THEN 'Aorta'
+
+        -- Artery / Arterial
+        WHEN UPPER(study_name) REGEXP '\\bARTERY\\b|\\bARTERIAL\\b'
+            THEN 'Arterial'
+
+        -- Auditory Canal
+        WHEN UPPER(study_name) REGEXP 'AUDITORY CANAL'
+            THEN 'Auditory Canal'
+
+        -- Axial Skeleton
+        WHEN UPPER(study_name) REGEXP 'AXIAL SKELETON'
+            THEN 'Axial Skeleton'
+
+        -- Bone
+        WHEN UPPER(study_name) REGEXP '\\bBONE\\b'
+            THEN 'Bone'
+
+        -- Bowel
+        WHEN UPPER(study_name) REGEXP '\\bBOWEL\\b'
+            THEN 'Bowel'
+
+        -- Brain
+        WHEN UPPER(study_name) REGEXP '\\bBRAIN\\b|\\bBRAINSTEM\\b|\\bBRIAN\\b|\\bBRIN\\b'
+            THEN 'Brain'
+
+        -- Breast
+        WHEN UPPER(study_name) REGEXP '\\bBREAST\\b|\\bBREASTS\\b'
+            THEN 'Breast'
+
+        -- Calf
+        WHEN UPPER(study_name) REGEXP '\\bCALF\\b'
+            THEN 'Calf'
+
+        -- Carotid
+        WHEN UPPER(study_name) REGEXP '\\bCAROTID\\b|\\bCAROTIDS\\b'
+            THEN 'Carotid'
+
+        -- Cervical Spine
+        WHEN UPPER(study_name) REGEXP '\\bCERVICAL SPINE\\b|\\bSPINE CERVICAL\\b|\\bC-SPINE\\b'
+            THEN 'Cervical Spine'
+
+        -- Cervical
+        WHEN UPPER(study_name) REGEXP '\\bCERVICAL\\b'
+            THEN 'Cervical'
+
+        -- Chest
+        WHEN UPPER(study_name) REGEXP '\\bCHEST\\b|\\bPA CHEST\\b|\\bCHEST PA\\b|\\bTHORAX\\b|\\bRIBS\\b|\\bPNEUMOTHORAX\\b|\\bTHORACENTESIS\\b'
+            THEN 'Chest'
+
+        -- Clavicle
+        WHEN UPPER(study_name) REGEXP '\\bCLAVICLE\\b'
+            THEN 'Clavicle'
+
+        -- Coccyx
+        WHEN UPPER(study_name) REGEXP '\\bCOCCYX\\b'
+            THEN 'Coccyx'
+
+        -- Colon / Large Intestine
+        WHEN UPPER(study_name) REGEXP '\\bCOLON\\b|\\bLARGE INTESTINE\\b'
+            THEN 'Colon'
+
+        -- Cranial Nerve
+        WHEN UPPER(study_name) REGEXP 'CRANIAL NERVE'
+            THEN 'Cranial Nerve'
+
+        -- Ear
+        WHEN UPPER(study_name) REGEXP '\\bEAR\\b'
+            THEN 'Ear'
+
+        -- Elbow
+        WHEN UPPER(study_name) REGEXP '\\bELBOW\\b|\\bELB\\b'
+            THEN 'Elbow'
+
+        -- Esophagus
+        WHEN UPPER(study_name) REGEXP '\\bESOPHAGUS\\b|\\bTRANSESOPHAGEAL\\b'
+            THEN 'Esophagus'
+
+        -- Extracranial
+        WHEN UPPER(study_name) REGEXP '\\bEXTRACRANIAL\\b|\\bEXTRACRAN\\b'
+            THEN 'Extracranial'
+
+        -- Eye / Orbit
+        WHEN UPPER(study_name) REGEXP '\\bEYE\\b|\\bORBIT\\b|\\bORBITS\\b|\\bORB\\b|OPTIC NERVE'
+            THEN 'Eye / Orbit'
+
+        -- Face
+        WHEN UPPER(study_name) REGEXP '\\bFACE\\b|\\bFACIAL\\b|\\bFACIAL BONES\\b'
+            THEN 'Face'
+
+        -- Femur
+        WHEN UPPER(study_name) REGEXP '\\bFEMUR\\b|\\bFEM\\b|\\bLATERAL FEMORAL\\b'
+            THEN 'Femur'
+
+        -- Fingers
+        WHEN UPPER(study_name) REGEXP '\\bFINGERS\\b|\\bFINGER\\b'
+            THEN 'Fingers'
+
+        -- Foot / Feet
+        WHEN UPPER(study_name) REGEXP '\\bFOOT\\b|\\bFEET\\b|\\bFT\\b|\\bHEEL\\b'
+            THEN 'Foot'
+
+        -- Forearm
+        WHEN UPPER(study_name) REGEXP '\\bFOREARM\\b|\\bFORE\\b'
+            THEN 'Forearm'
+
+        -- Gallbladder
+        WHEN UPPER(study_name) REGEXP '\\bGALLBLADDER\\b'
+            THEN 'Gallbladder'
+
+        -- Gastric / GI / UGI
+        WHEN UPPER(study_name) REGEXP '\\bGI\\b|\\bUGI\\b|\\bGASTRIC\\b|\\bGASTROINTESTINAL\\b|\\bSMALL INTESTINE\\b|\\bSTOMACH\\b'
+            THEN 'Gastric / GI'
+
+        -- Greater Occipital
+        WHEN UPPER(study_name) REGEXP 'GREATER OCCIPITAL|OCCIPITAL'
+            THEN 'Occipital'
+
+        -- Groin
+        WHEN UPPER(study_name) REGEXP '\\bGROIN\\b|\\bILIOINGUINAL\\b'
+            THEN 'Groin'
+
+        -- Hand
+        WHEN UPPER(study_name) REGEXP '\\bHAND\\b|\\bHANDS\\b'
+            THEN 'Hand'
+
+        -- Head
+        WHEN UPPER(study_name) REGEXP '\\bHEAD\\b|\\bORBITS\\b'
+            THEN 'Head'
+
+        -- Heart
+        WHEN UPPER(study_name) REGEXP '\\bHEART\\b|\\bTRANSTHORACIC\\b'
+            THEN 'Heart'
+
+        -- Hip
+        WHEN UPPER(study_name) REGEXP '\\bHIP\\b|\\bHIPS\\b'
+            THEN 'Hip'
+
+        -- Humerus / Upper Arm
+        WHEN UPPER(study_name) REGEXP '\\bHUMERUS\\b|\\bHUM\\b|\\bUPPER ARM\\b'
+            THEN 'Humerus / Upper Arm'
+
+        -- Intracranial
+        WHEN UPPER(study_name) REGEXP '\\bINTRACRANIAL\\b|\\bINTRACRAN\\b'
+            THEN 'Intracranial'
+
+        -- Kidney
+        WHEN UPPER(study_name) REGEXP '\\bKIDNEY\\b|\\bKIDNEYS\\b|\\bRENAL\\b'
+            THEN 'Kidney'
+
+        -- Knee
+        WHEN UPPER(study_name) REGEXP '\\bKNEE\\b|\\bKNEES\\b|\\bKN\\b'
+            THEN 'Knee'
+
+        -- Leg
+        WHEN UPPER(study_name) REGEXP '\\bLEG\\b|\\bLOWER LEG\\b'
+            THEN 'Leg'
+
+        -- Liver
+        WHEN UPPER(study_name) REGEXP '\\bLIVER\\b'
+            THEN 'Liver'
+
+        -- Lumbar Plexus
+        WHEN UPPER(study_name) REGEXP 'LUMBAR PLEXUS|LUMPLEX'
+            THEN 'Lumbar Plexus'
+
+        -- Lumbar Spine
+        WHEN UPPER(study_name) REGEXP '\\bLUMBAR SPINE\\b|\\bSPINE LUMBAR\\b|\\bLUMBOSACRAL\\b|\\bLUMOSACRAL\\b'
+            THEN 'Lumbar Spine'
+
+        -- Lumbar
+        WHEN UPPER(study_name) REGEXP '\\bLUMBAR\\b'
+            THEN 'Lumbar'
+
+        -- Lung
+        WHEN UPPER(study_name) REGEXP '\\bLUNG\\b'
+            THEN 'Lung'
+
+        -- Lymph Node
+        WHEN UPPER(study_name) REGEXP 'LYMPH NODE'
+            THEN 'Lymph Node'
+
+        -- Mandible
+        WHEN UPPER(study_name) REGEXP '\\bMANDIBLE\\b'
+            THEN 'Mandible'
+
+        -- Mastoids
+        WHEN UPPER(study_name) REGEXP '\\bMASTOIDS\\b|\\bMASTOID\\b'
+            THEN 'Mastoids'
+
+        -- Neck
+        WHEN UPPER(study_name) REGEXP '\\bNECK\\b|\\bNECK SOFT TISSUE\\b|\\bTHROAT\\b'
+            THEN 'Neck'
+
+        -- Pancreas
+        WHEN UPPER(study_name) REGEXP '\\bPANCREAS\\b'
+            THEN 'Pancreas'
+
+        -- Parathyroid
+        WHEN UPPER(study_name) REGEXP '\\bPARATHYROID\\b'
+            THEN 'Parathyroid'
+
+        -- Pelvis
+        WHEN UPPER(study_name) REGEXP '\\bPELVIS\\b|\\bPELVIC\\b'
+            THEN 'Pelvis'
+
+        -- Pituitary
+        WHEN UPPER(study_name) REGEXP '\\bPITUITARY\\b|\\bPITUITARY GLAND\\b|\\bSELLA TURCICA\\b'
+            THEN 'Pituitary'
+
+        -- Prostate / Rectal
+        WHEN UPPER(study_name) REGEXP '\\bPROSTATE\\b|\\bRECTAL\\b'
+            THEN 'Prostate / Rectal'
+
+        -- Retroperitoneum
+        WHEN UPPER(study_name) REGEXP '\\bRETROPERITONEUM\\b'
+            THEN 'Retroperitoneum'
+
+        -- Sacrum
+        WHEN UPPER(study_name) REGEXP '\\bSACRUM\\b'
+            THEN 'Sacrum'
+
+        -- Scapula
+        WHEN UPPER(study_name) REGEXP '\\bSCAPULA\\b|\\bSCAP\\b'
+            THEN 'Scapula'
+
+        -- Scoliosis
+        WHEN UPPER(study_name) REGEXP '\\bSCOLIOSIS\\b'
+            THEN 'Scoliosis'
+
+        -- Scrotal / Testicular
+        WHEN UPPER(study_name) REGEXP '\\bSCROTAL\\b|\\bSCROTUM\\b|\\bTESTICULAR\\b|\\bTESTICLE\\b|\\bTESTES\\b'
+            THEN 'Scrotal / Testicular'
+
+        -- Shoulder
+        WHEN UPPER(study_name) REGEXP '\\bSHOULDER\\b|\\bSH\\b|UPPER EXT JOINT SHOULDER'
+            THEN 'Shoulder'
+
+        -- Sinuses
+        WHEN UPPER(study_name) REGEXP '\\bSINUS\\b|\\bSINUSES\\b|\\bNASAL\\b|\\bSINUS/NASAL\\b'
+            THEN 'Sinuses'
+
+        -- Skull
+        WHEN UPPER(study_name) REGEXP '\\bSKULL\\b'
+            THEN 'Skull'
+
+        -- Spinal Cord Dorsal
+        WHEN UPPER(study_name) REGEXP 'SPINAL CORD DORSAL'
+            THEN 'Spinal Cord'
+
+        -- Spine
+        WHEN UPPER(study_name) REGEXP '\\bSPINE\\b|\\bSCPINE\\b'
+            THEN 'Spine'
+
+        -- Spleen
+        WHEN UPPER(study_name) REGEXP '\\bSPLEEN\\b'
+            THEN 'Spleen'
+
+        -- Sternum
+        WHEN UPPER(study_name) REGEXP '\\bSTERNUM\\b'
+            THEN 'Sternum'
+
+        -- Teeth / Thumb
+        WHEN UPPER(study_name) REGEXP '\\bTEETH\\b|\\bTHUMB\\b'
+            THEN 'Teeth / Thumb'
+
+        -- Temporal Bone
+        WHEN UPPER(study_name) REGEXP 'TEMPORAL BONE'
+            THEN 'Temporal Bone'
+
+        -- Thigh
+        WHEN UPPER(study_name) REGEXP '\\bTHIGH\\b|\\bTHIGHS\\b'
+            THEN 'Thigh'
+
+        -- Thoracic
+        WHEN UPPER(study_name) REGEXP '\\bTHORACIC\\b'
+            THEN 'Thoracic'
+
+        -- Thyroid
+        WHEN UPPER(study_name) REGEXP '\\bTHYROID\\b'
+            THEN 'Thyroid'
+
+        -- Toes
+        WHEN UPPER(study_name) REGEXP '\\bTOES\\b|\\bTOE\\b'
+            THEN 'Toes'
+
+        -- Torso / PE Torso
+        WHEN UPPER(study_name) REGEXP '\\bTORSO\\b|\\bPE TORSO\\b'
+            THEN 'Torso'
+
+        -- Transvaginal
+        WHEN UPPER(study_name) REGEXP 'TRANSVAGINAL|TRANS-VAGINAL|TRANS VAGINAL'
+            THEN 'Transvaginal'
+
+        -- Trigeminal
+        WHEN UPPER(study_name) REGEXP 'TRIGEMINAL NERVE|TRIGEMINAL'
+            THEN 'Trigeminal Nerve'
+
+        -- Uterus
+        WHEN UPPER(study_name) REGEXP '\\bUTERUS\\b'
+            THEN 'Uterus'
+
+        -- Vagus Nerve
+        WHEN UPPER(study_name) REGEXP 'VAGUS NERVE'
+            THEN 'Vagus Nerve'
+
+        -- Veins
+        WHEN UPPER(study_name) REGEXP '\\bVEINS\\b|\\bVENOUS\\b'
+            THEN 'Veins'
+
+        -- Whole Body
+        WHEN UPPER(study_name) REGEXP 'WHOLE BODY'
+            THEN 'Whole Body'
+
+        -- Wrist
+        WHEN UPPER(study_name) REGEXP '\\bWRIST\\b|\\bWRISTS\\b|\\bWR\\b'
+            THEN 'Wrist'
+
+        ELSE 'Other'
+    END AS body_part,
+
+    -- LATERALITY
+    CASE
+        WHEN UPPER(study_name) REGEXP '\\bBILATERAL\\b'
+            THEN 'Bilateral'
+        WHEN UPPER(study_name) REGEXP '\\bUNILATERAL\\b'
+            THEN 'Unilateral'
+        WHEN UPPER(study_name) REGEXP '\\bLEFT\\b|\\bLT\\b'
+            THEN 'Left'
+        WHEN UPPER(study_name) REGEXP '\\bRIGHT\\b|\\bRT\\b'
+            THEN 'Right'
+        ELSE NULL
+    END AS laterality,
+
+    -- CONTRAST TYPE
+    CASE
+        -- WITH AND WITHOUT (check combined first)
+        WHEN UPPER(study_name) REGEXP 'W[/\\s]?WO|W\\s?&\\s?W/?O|W\\s?AND\\s?W/?O|W\\s?OR\\s?W/?O|WITH\\s?AND\\s?W/?O|WO\\+W|W\\+W/?O|WITHOUT/WITH|WITH/WITHOUT|W\\s?AND\\s?WOW|WO,\\s?W|W,\\s?WO|WWO|W/W/O|WO/W|W/&W/O|W AND OR WO|W WO|W\\s?W/?O|WO\\s?W'
+            THEN 'With and Without Contrast'
+
+        -- WITHOUT CONTRAST
+        WHEN UPPER(study_name) REGEXP '\\bWO\\b|\\bW/O\\b|\\bWITHOUT\\b|\\bWO CON\\b|\\bW/O CONTRAST\\b|\\bNCON\\b|\\bNO CON\\b|\\bWO C\\b|\\bWO CONTRAST\\b'
+            THEN 'Without Contrast'
+
+        -- WITH CONTRAST
+        WHEN UPPER(study_name) REGEXP '\\bW CON\\b|\\bW CONTRAST\\b|\\bWITH CONTRAST\\b|\\bW C\\b|\\bW/\\b|\\bCON\\b'
+            THEN 'With Contrast'
+
+        ELSE 'No Contrast Info'
+    END AS contrast_type
+
+FROM rgd_udm_silver.radiology;
