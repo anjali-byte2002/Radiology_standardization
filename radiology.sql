@@ -320,8 +320,7 @@ WHERE REGEXP_REPLACE(
 
 
       
--- BODY PART, CONTRAST TYPE, LATERALITY
-
+-- BODY PART, CONTRAST TYPE, LATERALITY, STRENGTH, VIEWS
 SELECT DISTINCT
     study_name,
 
@@ -802,6 +801,57 @@ SELECT DISTINCT
             THEN 'With Contrast'
 
         ELSE 'No Contrast Info'
-    END AS contrast_type
+    END AS contrast_type, 
+    CASE
+        -- VIEWS LOGIC FIRST (priority)
+        
+        -- 2+ VIEWS / 3 PLUS VIEWS
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*\\+\\s*VIEWS?|[0-9]+\\s*PLUS\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), '+ Views')
+
+        -- 3 OR MORE VIEWS
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*OR\\s*MORE\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), ' or More Views')
+
+        -- 2 OR 3 VIEWS
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*OR\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
+
+        -- MIN OF 4 VIEWS
+        WHEN UPPER(study_name) REGEXP 'MIN\\s*OF\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT('Min of ', REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
+
+        -- LESS THAN 4 VIEWS
+        WHEN UPPER(study_name) REGEXP 'LESS\\s*THAN\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT('Less Than ', REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
+
+        -- <4 VIEWS
+        WHEN UPPER(study_name) REGEXP '[<][0-9]+\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(study_name, '[<][0-9]+'), ' Views')
+
+        -- SPECIAL VIEWS
+        WHEN UPPER(study_name) REGEXP 'BENDING|OBLIQUE|AP\\s*AND\\s*LATERAL|PORTABLE'
+            THEN 'Special Views'
+
+        -- TEXT NUMBERS
+        WHEN UPPER(study_name) REGEXP '\\bTWO\\s*VIEWS?' THEN '2 Views'
+        WHEN UPPER(study_name) REGEXP '\\bTHREE\\s*VIEWS?' THEN '3 Views'
+        WHEN UPPER(study_name) REGEXP '\\bFOUR\\s*VIEWS?' THEN '4 Views'
+
+        -- NORMAL NUMERIC VIEWS
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
+
+        -- -------------------------
+        -- STRENGTH (fallback)
+        -- -------------------------
+        WHEN UPPER(study_name) REGEXP '[0-9\\.]+\\s*[VT]\\b'
+            THEN REGEXP_SUBSTR(study_name, '[0-9\\.]+[VT]')
+
+        ELSE NULL
+    END AS views_strength
+
 
 FROM rgd_udm_silver.radiology;
+
+
