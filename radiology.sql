@@ -21,7 +21,7 @@ WITH base AS (
             WHEN study_name REGEXP '[A-Za-z]+[0-9]{6,}'
                 THEN REGEXP_SUBSTR(study_name, '[A-Za-z]+[0-9]{6,}')
 
-            ELSE NULL
+            ELSE 'NS'
         END AS extracted_cpt_code,
 
         -- Extract SECOND CPT code (for dual modality / dual CPT cases)
@@ -43,18 +43,18 @@ SELECT DISTINCT
     CASE 
         WHEN b.extracted_cpt_code IS NOT NULL 
              AND b.extracted_cpt_code NOT REGEXP '^[0-9]{5}$'
-            THEN 'Flagged'
+            THEN 'NS'
         WHEN cpt1.PROCEDURECODE IS NOT NULL 
             THEN cpt1.PROCEDURECODE
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_code_std,
 
     -- CPT DESCRIPTION 1 STANDARDIZED
     CASE 
-        WHEN cpt1.PROCEDURECODE IS NULL THEN 'Flagged'
+        WHEN cpt1.PROCEDURECODE IS NULL THEN 'NS'
         WHEN cpt1.COMMONDESCRIPTION IS NOT NULL THEN cpt1.COMMONDESCRIPTION
         WHEN cpt1.DESCRIPTION IS NOT NULL THEN cpt1.DESCRIPTION
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_description_std,
 
     -- SECOND EXTRACTED CPT CODE (only for dual CPT cases)
@@ -70,7 +70,7 @@ SELECT DISTINCT
             THEN NULL
         WHEN cpt2.PROCEDURECODE IS NOT NULL
             THEN cpt2.PROCEDURECODE
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_code_2_std,
 
     -- CPT DESCRIPTION 2 STANDARDIZED
@@ -78,12 +78,12 @@ SELECT DISTINCT
         WHEN b.extracted_cpt_code_2 IS NULL
             THEN NULL
         WHEN cpt2.PROCEDURECODE IS NULL
-            THEN 'Flagged'
+            THEN 'NS'
         WHEN cpt2.COMMONDESCRIPTION IS NOT NULL
             THEN cpt2.COMMONDESCRIPTION
         WHEN cpt2.DESCRIPTION IS NOT NULL
             THEN cpt2.DESCRIPTION
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_description_2_std,
 
     -- CPT COUNT FLAG
@@ -256,14 +256,14 @@ SELECT DISTINCT
     -- FIRST CPT CODE STANDARDIZED
     CASE
         WHEN cpt1.PROCEDURECODE IS NOT NULL THEN cpt1.PROCEDURECODE
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_code_1_std,
 
     -- FIRST CPT DESCRIPTION
     CASE
         WHEN cpt1.COMMONDESCRIPTION IS NOT NULL THEN cpt1.COMMONDESCRIPTION
         WHEN cpt1.DESCRIPTION IS NOT NULL THEN cpt1.DESCRIPTION
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_description_1_std,
 
     -- SECOND CPT CODE EXTRACTED
@@ -275,14 +275,14 @@ SELECT DISTINCT
     -- SECOND CPT CODE STANDARDIZED
     CASE
         WHEN cpt2.PROCEDURECODE IS NOT NULL THEN cpt2.PROCEDURECODE
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_code_2_std,
 
     -- SECOND CPT DESCRIPTION
     CASE
         WHEN cpt2.COMMONDESCRIPTION IS NOT NULL THEN cpt2.COMMONDESCRIPTION
         WHEN cpt2.DESCRIPTION IS NOT NULL THEN cpt2.DESCRIPTION
-        ELSE 'Flagged'
+        ELSE 'NS'
     END AS cpt_description_2_std,
 
     -- FLAG
@@ -802,56 +802,133 @@ SELECT DISTINCT
 
         ELSE 'No Contrast Info'
     END AS contrast_type, 
-    CASE
-        -- VIEWS LOGIC FIRST (priority)
-        
-        -- 2+ VIEWS / 3 PLUS VIEWS
-        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*\\+\\s*VIEWS?|[0-9]+\\s*PLUS\\s*VIEWS?'
-            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), '+ Views')
-
-        -- 3 OR MORE VIEWS
-        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*OR\\s*MORE\\s*VIEWS?'
-            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), ' or More Views')
-
-        -- 2 OR 3 VIEWS
-        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*OR\\s*[0-9]+\\s*VIEWS?'
-            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
-
-        -- MIN OF 4 VIEWS
-        WHEN UPPER(study_name) REGEXP 'MIN\\s*OF\\s*[0-9]+\\s*VIEWS?'
-            THEN CONCAT('Min of ', REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
-
-        -- LESS THAN 4 VIEWS
-        WHEN UPPER(study_name) REGEXP 'LESS\\s*THAN\\s*[0-9]+\\s*VIEWS?'
-            THEN CONCAT('Less Than ', REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
-
-        -- <4 VIEWS
-        WHEN UPPER(study_name) REGEXP '[<][0-9]+\\s*VIEWS?'
-            THEN CONCAT(REGEXP_SUBSTR(study_name, '[<][0-9]+'), ' Views')
-
-        -- SPECIAL VIEWS
-        WHEN UPPER(study_name) REGEXP 'BENDING|OBLIQUE|AP\\s*AND\\s*LATERAL|PORTABLE'
-            THEN 'Special Views'
-
-        -- TEXT NUMBERS
-        WHEN UPPER(study_name) REGEXP '\\bTWO\\s*VIEWS?' THEN '2 Views'
-        WHEN UPPER(study_name) REGEXP '\\bTHREE\\s*VIEWS?' THEN '3 Views'
-        WHEN UPPER(study_name) REGEXP '\\bFOUR\\s*VIEWS?' THEN '4 Views'
-
-        -- NORMAL NUMERIC VIEWS
-        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*VIEWS?'
-            THEN CONCAT(REGEXP_SUBSTR(study_name, '[0-9]+'), ' Views')
-
-        -- -------------------------
-        -- STRENGTH (fallback)
-        -- -------------------------
-        WHEN UPPER(study_name) REGEXP '[0-9\\.]+\\s*[VT]\\b'
-            THEN REGEXP_SUBSTR(study_name, '[0-9\\.]+[VT]')
-
-        ELSE NULL
-    END AS views_strength
-
 
 FROM rgd_udm_silver.radiology;
 
+
+-- CONTRAST, STRENGTH, VIEWS 
+
+SELECT DISTINCT
+    study_name,
+    CASE
+        -- STRENGTH (T = Tesla) — only applies when contrast is present (MRI context)
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\.?[0-9]*\\s*T\\b'
+            AND UPPER(study_name) REGEXP 'W[/\\s]?WO|W\\s?&\\s?W/?O|W\\s?AND\\s?W/?O|WITHOUT/WITH|WITH/WITHOUT|WWO|WO/W|\\bWO\\b|\\bW/O\\b|\\bWITHOUT\\b|\\bWO CON\\b|\\bNCON\\b|\\bNO CON\\b|\\bWO C\\b|\\bWO CONTRAST\\b|\\bW CON\\b|\\bW CONTRAST\\b|\\bWITH CONTRAST\\b|\\bW C\\b|\\bW/\\b|\\bCON\\b'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+\\.?[0-9]*(?=\\s*[Tt]\\b)'),
+                'T'
+            )
+
+        -- Pattern 1 (2V, 3V, 4V, MIN 4V, 2-3V)
+        WHEN UPPER(study_name) REGEXP '[0-9]+-[0-9]+\\s*V\\b'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+-[0-9]+(?=\\s*[Vv]\\b)'),
+                ' Views'
+            )
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*V\\b'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+(?=\\s*[Vv]\\b)'),
+                ' Views'
+            )
+        -- MULTIPLE VIEW ENTRIES
+        WHEN UPPER(study_name) REGEXP '[0-9]+-[0-9]+\\s*VIEW.*(\\+|AND).*[0-9]+-[0-9]+\\s*VIEW|[0-9]+\\s*VIEWS?.*\\+.*[0-9]+\\s*VIEW'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+-[0-9]+|[0-9]+(?=\\s*VIEWS?)'),
+                ' Views + ',
+                REGEXP_SUBSTR(study_name, '[0-9]+(?=\\s*VIEW)', 1, 2),
+                ' View'
+            )
+        -- Pattern 2 >=, <=, >, <
+        WHEN UPPER(study_name) REGEXP '[><=]{1,2}\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[><=]{1,2}'),
+                REGEXP_SUBSTR(study_name, '[0-9]+'),
+                ' Views'
+            )
+        -- Pattern 3 (2-3 Views)
+        WHEN UPPER(study_name) REGEXP '[0-9]+-[0-9]+\\s*VIEW'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+-[0-9]+'),
+                ' Views'
+            )
+        -- Pattern 4 (MIN / MINIMUM)
+        WHEN UPPER(study_name) REGEXP '(MIN|MINIMUM)(\\s+OF)?\\s*(ONE|TWO|THREE|FOUR|FIVE|SIX|[0-9]+)\\s*(V\\b|VWS|VIEW|VIEWS)'
+            THEN CONCAT(
+                'Min ',
+                COALESCE(
+                    REGEXP_SUBSTR(study_name, '[0-9]+(?=\\s*(V\\b|VWS|VIEW|VIEWS))'),
+                    CASE
+                        WHEN UPPER(study_name) REGEXP 'ONE\\s*(V|VIEW|VIEWS)'   THEN '1'
+                        WHEN UPPER(study_name) REGEXP 'TWO\\s*(V|VIEW|VIEWS)'   THEN '2'
+                        WHEN UPPER(study_name) REGEXP 'THREE\\s*(V|VIEW|VIEWS)' THEN '3'
+                        WHEN UPPER(study_name) REGEXP 'FOUR\\s*(V|VIEW|VIEWS)'  THEN '4'
+                    END
+                ),
+                ' Views'
+            )
+        -- Pattern 5 (PLUS VIEWS)
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*[\\+]\\s*VIEWS?|[0-9]+\\s*PLUS\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+'),
+                '+ Views'
+            )
+        -- Pattern 6 (OR MORE)
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*OR\\s*MORE\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+'),
+                ' or More Views'
+            )
+        -- Pattern 7(OR BETWEEN)
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\s*OR\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+'),
+                ' or ',
+                REGEXP_SUBSTR(study_name, '[0-9]+', 1, 2),
+                ' Views'
+            )
+        -- Pattern 8 (WRITTEN NUMBERS)
+        WHEN UPPER(study_name) REGEXP '\\b(ONE|TWO|THREE|FOUR|FIVE|SIX)\\s*VIEWS?\\b'
+            THEN CONCAT(
+                CASE
+                    WHEN UPPER(study_name) REGEXP '\\bONE\\s*VIEWS?'   THEN '1'
+                    WHEN UPPER(study_name) REGEXP '\\bTWO\\s*VIEWS?'   THEN '2'
+                    WHEN UPPER(study_name) REGEXP '\\bTHREE\\s*VIEWS?' THEN '3'
+                    WHEN UPPER(study_name) REGEXP '\\bFOUR\\s*VIEWS?'  THEN '4'
+                    WHEN UPPER(study_name) REGEXP '\\bFIVE\\s*VIEWS?'  THEN '5'
+                    WHEN UPPER(study_name) REGEXP '\\bSIX\\s*VIEWS?'   THEN '6'
+                END,
+                ' Views'
+            )
+        -- Pattern 9 (LESS THAN)
+        WHEN UPPER(study_name) REGEXP '(LESS\\s*THAN|<)\\s*[0-9]+\\s*(V\\b|VIEW|VIEWS)'
+            THEN CONCAT(
+                'Less Than ',
+                REGEXP_SUBSTR(study_name, '[0-9]+(?=\\s*(V\\b|VIEW|VIEWS))'),
+                ' Views'
+            )
+
+        -- Catch-all fallback
+        WHEN UPPER(study_name) REGEXP '[0-9]+\\+?\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(study_name, '[0-9]+'),
+                ' Views'
+            )
+
+        ELSE 'NS'
+    END AS views_strength,
+
+    -- CONTRAST TYPE
+    CASE
+        -- WITH AND WITHOUT (check combined first)
+        WHEN UPPER(study_name) REGEXP 'W[/\\s]?WO|W\\s?&\\s?W/?O|W\\s?AND\\s?W/?O|W\\s?OR\\s?W/?O|WITH\\s?AND\\s?W/?O|WO\\+W|W\\+W/?O|WITHOUT/WITH|WITH/WITHOUT|W\\s?AND\\s?WOW|WO,\\s?W|W,\\s?WO|WWO|W/W/O|WO/W|W/&W/O|W AND OR WO|W WO|W\\s?W/?O|WO\\s?W'
+            THEN 'With and Without Contrast'
+        -- WITHOUT CONTRAST
+        WHEN UPPER(study_name) REGEXP '\\bWO\\b|\\bW/O\\b|\\bWITHOUT\\b|\\bWO CON\\b|\\bW/O CONTRAST\\b|\\bNCON\\b|\\bNO CON\\b|\\bWO C\\b|\\bWO CONTRAST\\b'
+            THEN 'Without Contrast'
+        -- WITH CONTRAST
+        WHEN UPPER(study_name) REGEXP '\\bW CON\\b|\\bW CONTRAST\\b|\\bWITH CONTRAST\\b|\\bW C\\b|\\bW/\\b|\\bCON\\b'
+            THEN 'With Contrast'
+        ELSE 'No Contrast Info'
+    END AS contrast_type
+FROM rgd_udm_silver.radiology;
 
