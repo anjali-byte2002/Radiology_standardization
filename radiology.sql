@@ -932,3 +932,139 @@ SELECT DISTINCT
     END AS contrast_type
 FROM rgd_udm_silver.radiology;
 
+
+-- PET TRACER INFORMATION 
+
+
+SELECT DISTINCT
+    study_name,
+
+    -- COLUMN 1: Tracer Full Name
+    CASE
+        -- F18 AMYLOID TRACERS
+        WHEN UPPER(study_name) REGEXP 'FLORBETAPIR|AMYVID|A9591|F-?18\\s*FLORBETAPIR|18F-?FLORBETAPIR|\\[18F\\]\\s*FLORBETAPIR'
+            THEN 'Florbetapir F18 (Amyvid)'
+        WHEN UPPER(study_name) REGEXP 'FLUTEMETAMOL|VIZAMYL|A9592|F-?18\\s*FLUTEMETAMOL|18F-?FLUTEMETAMOL|\\[18F\\]\\s*FLUTEMETAMOL'
+            THEN 'Flutemetamol F18 (Vizamyl)'
+        WHEN UPPER(study_name) REGEXP 'FLORBETABEN|NEURACEQ|A9593|F-?18\\s*FLORBETABEN|18F-?FLORBETABEN|\\[18F\\]\\s*FLORBETABEN'
+            THEN 'Florbetaben F18 (Neuraceq)'
+        -- GENERIC AMYLOID PET (not matched to specific tracer)
+        WHEN UPPER(study_name) REGEXP '\\bAMYLOID\\b'
+            THEN 'F18 - Amyloid Tracer (Unspecified)'
+
+        -- F18 PIB (research amyloid)
+        WHEN UPPER(study_name) REGEXP '\\bPIB\\b|PITTSBURGH\\s*COMPOUND|F-?18\\s*PIB|18F-?PIB'
+            THEN 'PiB F18 (Pittsburgh Compound-B)'
+
+        -- F18 PSMA TRACERS
+        WHEN UPPER(study_name) REGEXP 'PIFLUFOLASTAT|PYLARIFY|A9816|DCFPYL'
+            THEN 'Piflufolastat F18 (Pylarify)'
+        WHEN UPPER(study_name) REGEXP 'FLOTUFOLASTAT|POSLUMA|A9815|PSMA-?1007'
+            THEN 'Flotufolastat F18 (Posluma)'
+        -- GENERIC PSMA F-18 (brand not specified)
+        WHEN UPPER(study_name) REGEXP '\\bPSMA\\b'
+            AND UPPER(study_name) REGEXP 'F-?18|\\bF18\\b|\\[18F\\]|18F-?'
+            THEN 'F18 - PSMA Tracer (Unspecified)'
+
+        -- F18 FDG
+        WHEN UPPER(study_name) REGEXP '\\bFDG\\b|FLUORODEOXYGLUCOSE|FLUDEOXYGLUCOSE|A9552|FDG-?PET'
+            THEN 'FDG F18 (Fluorodeoxyglucose)'
+
+        -- F18 SODIUM FLUORIDE (bone PET)
+        WHEN UPPER(study_name) REGEXP 'SODIUM\\s*FLUORIDE|\\bNAF\\b|A9580|F-?18\\s*FLUORIDE|18F-?FLUORIDE|18F-?NAF'
+            THEN 'Sodium Fluoride F18 (NaF)'
+
+        -- F18 FDOPA / FLUORODOPA
+        WHEN UPPER(study_name) REGEXP '\\bFDOPA\\b|FLUORODOPA|FLUORO-?DOPA|A9600|F-?18\\s*FDOPA|18F-?FDOPA|18F-?DOPA'
+            THEN 'Fluorodopa F18 (FDOPA)'
+
+        -- F18 FLUCICLOVINE (Axumin) — prostate cancer
+        WHEN UPPER(study_name) REGEXP 'FLUCICLOVINE|AXUMIN|A9584|\\bFACBC\\b'
+            THEN 'Fluciclovine F18 (Axumin)'
+
+        -- F18 FLORTAUCIPIR (Tauvid) — tau PET
+        WHEN UPPER(study_name) REGEXP 'FLORTAUCIPIR|TAUVID|A9814|TAU\\s*PET'
+            THEN 'Flortaucipir F18 (Tauvid)'
+
+        -- GENERIC F18 (isotope present but no specific tracer matched)
+        WHEN UPPER(study_name) REGEXP '\\bF-?18\\b|\\[18F\\]|18F-?|\\bF18\\b'
+            THEN 'F18 - Tracer Not Specified'
+
+        -- GA-68 TRACERS
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*DOTATATE|NETSPOT|\\bDOTATATE\\b'
+            THEN 'Ga68-DOTATATE (Netspot)'
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*DOTATOC|\\bDOTATOC\\b'
+            THEN 'Ga68-DOTATOC'
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*DOTANOC|\\bDOTANOC\\b'
+            THEN 'Ga68-DOTANOC'
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*PSMA|ILLUCCIX|LOCAMETZ|\\bPSMA-?11\\b'
+            THEN 'Ga68-PSMA-11 (Illuccix/Locametz)'
+        -- GENERIC GA-68 (isotope present but no specific tracer matched)
+        WHEN UPPER(study_name) REGEXP '\\bGA-?68\\b|\\[68GA\\]|68GA-?|\\bGALLIUM\\s*68\\b|\\bGALLIUM-?68\\b'
+            THEN 'Ga68 - Tracer Not Specified'
+
+        -- PET present but no isotope or tracer matched
+        WHEN UPPER(study_name) REGEXP '\\bPET\\b|\\bPET/CT\\b|\\bPET/MR\\b|\\bPET-CT\\b|\\bPET-MR\\b'
+            THEN 'PET - Tracer Not Specified'
+
+        ELSE 'No PET Tracer'
+    END AS pet_tracer_name,
+
+    -- COLUMN 2: HCPCS Code
+    CASE
+        WHEN UPPER(study_name) REGEXP 'FLORBETAPIR|AMYVID|A9591|F-?18\\s*FLORBETAPIR|18F-?FLORBETAPIR|\\[18F\\]\\s*FLORBETAPIR'
+            THEN 'A9591'
+        WHEN UPPER(study_name) REGEXP 'FLUTEMETAMOL|VIZAMYL|A9592|F-?18\\s*FLUTEMETAMOL|18F-?FLUTEMETAMOL|\\[18F\\]\\s*FLUTEMETAMOL'
+            THEN 'A9592'
+        WHEN UPPER(study_name) REGEXP 'FLORBETABEN|NEURACEQ|A9593|F-?18\\s*FLORBETABEN|18F-?FLORBETABEN|\\[18F\\]\\s*FLORBETABEN'
+            THEN 'A9593'
+        WHEN UPPER(study_name) REGEXP '\\bAMYLOID\\b'
+            THEN 'A9591/A9592/A9593 (Unspecified)'
+        WHEN UPPER(study_name) REGEXP 'PIFLUFOLASTAT|PYLARIFY|A9816|DCFPYL'
+            THEN 'A9816'
+        WHEN UPPER(study_name) REGEXP 'FLOTUFOLASTAT|POSLUMA|A9815|PSMA-?1007'
+            THEN 'A9815'
+        WHEN UPPER(study_name) REGEXP '\\bPSMA\\b'
+            AND UPPER(study_name) REGEXP 'F-?18|\\bF18\\b|\\[18F\\]|18F-?'
+            THEN 'A9815/A9816 (Unspecified)'
+        WHEN UPPER(study_name) REGEXP '\\bFDG\\b|FLUORODEOXYGLUCOSE|FLUDEOXYGLUCOSE|A9552|FDG-?PET'
+            THEN 'A9552'
+        WHEN UPPER(study_name) REGEXP 'SODIUM\\s*FLUORIDE|\\bNAF\\b|A9580'
+            THEN 'A9580'
+        WHEN UPPER(study_name) REGEXP '\\bFDOPA\\b|FLUORODOPA|FLUORO-?DOPA|A9600'
+            THEN 'A9600'
+        WHEN UPPER(study_name) REGEXP 'FLUCICLOVINE|AXUMIN|A9584|\\bFACBC\\b'
+            THEN 'A9584'
+        WHEN UPPER(study_name) REGEXP 'FLORTAUCIPIR|TAUVID|A9814|TAU\\s*PET'
+            THEN 'A9814'
+        WHEN UPPER(study_name) REGEXP '\\bPIB\\b|PITTSBURGH\\s*COMPOUND'
+            THEN 'N/A (Research)'
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*DOTATATE|NETSPOT|\\bDOTATATE\\b'
+            THEN 'A9800'
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*DOTATOC|\\bDOTATOC\\b'
+            THEN 'A9801'
+        WHEN UPPER(study_name) REGEXP 'GA-?68\\s*PSMA|ILLUCCIX|LOCAMETZ|\\bPSMA-?11\\b'
+            THEN 'A9858'
+        ELSE 'N/A'
+    END AS pet_hcpcs_code,
+
+    -- Is this a PET radiopharmaceutical study at all? (broad fallback)
+    CASE
+        WHEN UPPER(study_name) REGEXP
+            'FLORBETAPIR|AMYVID|A9591|FLUTEMETAMOL|VIZAMYL|A9592|FLORBETABEN|NEURACEQ|A9593|'
+            'FLORTAUCIPIR|TAUVID|A9814|TAU\\s*PET|FLORZOLOTAU|PI-?2620|FLORPIRAMINE|MK-?6240|'
+            'FLUCICLOVINE|AXUMIN|A9584|FACBC|FLOTUFOLASTAT|POSLUMA|A9815|PSMA-?1007|'
+            'PIFLUFOLASTAT|PYLARIFY|A9816|DCFPYL|'
+            'SODIUM\\s*FLUORIDE|\\bNAF\\b|A9580|'
+            'FDG|FLUORODEOXYGLUCOSE|FLUDEOXYGLUCOSE|A9552|'
+            'FMISO|FLUOROMISONIDAZOLE|'
+            'FDOPA|FLUORODOPA|A9600|'
+            '\\bDCFBC\\b|\\bPIB\\b|PITTSBURGH\\s*COMPOUND|\\bAMYLOID\\b|'
+            '\\bF-?18\\b|\\[18F\\]|18F-?|\\bF18\\b|'
+            '\\bGA-?68\\b|\\[68GA\\]|68GA-?|GALLIUM.?68|'
+            '\\bPET\\b|\\bPET/CT\\b|\\bPET/MR\\b'
+            THEN 'Yes'
+        ELSE 'No'
+    END AS is_pet_study
+
+FROM rgd_udm_silver.radiology;
