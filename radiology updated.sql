@@ -134,6 +134,17 @@ SELECT DISTINCT
         WHEN c.study_name REGEXP '\\bSPECT\\b'                                        THEN 'Single-photon emission computed tomography (SPECT)'
         WHEN c.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b|\\bVL\\b|\\bOHS\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b' THEN 'Other'
         ELSE 'Other'
-    END AS modality_combined
+    END AS modality_combined,
+
+    -- CONTRAST TYPE — derived from study_name
+    CASE
+        WHEN UPPER(c.study_name) REGEXP 'W[/\\s]?WO|W\\s?&\\s?W/?O|W\\s?AND\\s?W/?O|W\\s?OR\\s?W/?O|WITH\\s?AND\\s?W/?O|WO\\+W|W\\+W/?O|WITHOUT/WITH|WITH/WITHOUT|W\\s?AND\\s?WOW|WO,\\s?W|W,\\s?WO|WWO|W/W/O|WO/W|W/&W/O|W AND OR WO|W WO|W\\s?W/?O|WO\\s?W'
+            THEN 'With and Without Contrast'
+        WHEN UPPER(c.study_name) REGEXP '\\bWO\\b|\\bW/O\\b|\\bWITHOUT\\b|\\bWO CON\\b|\\bW/O CONTRAST\\b|\\bNCON\\b|\\bNO CON\\b|\\bWO C\\b|\\bWO CONTRAST\\b'
+            THEN 'Without Contrast'
+        WHEN UPPER(c.study_name) REGEXP '\\bW CON\\b|\\bW CONTRAST\\b|\\bWITH CONTRAST\\b|\\bW C\\b|\\bW/\\b|\\bCON\\b'
+            THEN 'With Contrast'
+        ELSE 'No Contrast Info'
+    END AS contrast_type
 
 FROM cpt_std c;
