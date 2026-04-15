@@ -152,7 +152,7 @@ SELECT DISTINCT
         WHEN b.study_name REGEXP '\\bVL\\b|\\bOHS\\b|\\bSPECT\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b'
             THEN 'Other'
         WHEN cpt1.PROCEDURECODE IS NOT NULL
-            THEN 'CPT Matched - See cpt_description_std'
+            THEN cpt_description_std
         ELSE 'Other'
     END AS modality,
 
