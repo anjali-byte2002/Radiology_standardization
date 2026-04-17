@@ -94,7 +94,7 @@ SELECT DISTINCT
         WHEN c.study_name REGEXP '\\bRT\\b|\\bRAD\\b|\\bIR\\b|\\bINTERVENTIONAL RADIOLOGY\\b'       THEN 'Radiographic imaging'
         WHEN c.study_name REGEXP '\\bSPECT\\b'                                                       THEN 'Single-photon emission computed tomography (SPECT)'
         WHEN c.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b|\\bVL\\b|\\bOHS\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b' THEN 'Other'
-        ELSE 'Other'
+        ELSE 'NS'
     END AS modality_std,
 
     -- CONTRAST TYPE STD
@@ -222,7 +222,7 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP '\\bVEINS\\b|\\bVENOUS\\b'                                                                     THEN 'Veins'
         WHEN UPPER(c.study_name) REGEXP 'WHOLE BODY'                                                                                     THEN 'Whole Body'
         WHEN UPPER(c.study_name) REGEXP '\\bWRIST\\b|\\bWRISTS\\b|\\bWR\\b'                                                           THEN 'Wrist'
-        ELSE 'Other'
+        ELSE 'NS'
     END AS body_part_std,
 
     -- LATERALITY STD
@@ -231,7 +231,7 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP '\\bUNILATERAL\\b'        THEN 'Unilateral'
         WHEN UPPER(c.study_name) REGEXP '\\bLEFT\\b|\\bLT\\b'     THEN 'Left'
         WHEN UPPER(c.study_name) REGEXP '\\bRIGHT\\b|\\bRT\\b'    THEN 'Right'
-        ELSE NULL
+        ELSE 'NULL'
     END AS laterality_std,
 
     -- TRACER NAME STD
@@ -256,7 +256,7 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP 'GA-?68\\s*PSMA|ILLUCCIX|LOCAMETZ|\\bPSMA-?11\\b'                                             THEN 'Ga68-PSMA-11 (Illuccix/Locametz)'
         WHEN UPPER(c.study_name) REGEXP '\\bGA-?68\\b|\\[68GA\\]|68GA-?|\\bGALLIUM\\s*68\\b|\\bGALLIUM-?68\\b'                       THEN 'Ga68 - Tracer Not Specified'
         WHEN UPPER(c.study_name) REGEXP '\\bPET\\b|\\bPET/CT\\b|\\bPET/MR\\b|\\bPET-CT\\b|\\bPET-MR\\b'                              THEN 'PET - Tracer Not Specified'
-        ELSE NULL
+        ELSE 'NS'
     END AS tracer_name_std
 
 FROM cpt_std c;
