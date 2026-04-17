@@ -1,3 +1,7 @@
+=============FINAL FOR KINSULA=====================
+
+
+-- EXTRACTED CODES
 WITH base AS (
     SELECT
         study_name,
@@ -64,39 +68,115 @@ SELECT DISTINCT
     c.proc_code_std,
 
     -- MODALITY STD
-    -- Combined patterns checked first, then single modality
-    CASE
-        WHEN c.study_name REGEXP '\\bPET/CT\\b|\\bPET CT\\b'                                        THEN 'Positron emission tomography (PET) / Computed Tomography'
-        WHEN c.study_name REGEXP '\\bXR/RF\\b'                                                       THEN 'Digital Radiography / Radio Fluoroscopy'
-        WHEN c.study_name REGEXP '\\bUS DOPPLER\\b|\\bUS DUPLEX\\b'                                  THEN 'Ultrasound / Duplex Doppler'
-        WHEN c.study_name REGEXP '\\bUS ECHOCARDIOGRAM\\b'                                           THEN 'Ultrasound / Echocardiography'
-        WHEN c.study_name REGEXP '\\bXA US\\b'                                                       THEN 'X-Ray Angiography / Ultrasound'
-        WHEN c.study_name REGEXP '\\bCT\\b|\\bCAT\\b|\\bNCT\\b|\\bLDCT\\b|\\bCTA\\b|\\bCTV\\b|\\bCTAC\\b|\\bCTC\\b|\\bCTP\\b' THEN 'Computed Tomography'
-        WHEN c.study_name REGEXP '\\bPET\\b|\\bPT\\b'                                                THEN 'Positron emission tomography (PET)'
-        WHEN c.study_name REGEXP '\\bMRA\\b|\\bzzMRA\\b'                                             THEN 'Magnetic resonance angiography'
-        WHEN c.study_name REGEXP '\\bMRI\\b|\\bMRCP\\b|\\bMRV\\b|\\bTMRI\\b|\\b3TMRI\\b|\\bMR\\b'  THEN 'Magnetic Resonance'
-        WHEN c.study_name REGEXP '\\bMAM\\b|\\bMAMM\\b|\\bMAMMO\\b|\\bMMAMMO\\b|\\bMG\\b|\\bMAMMOGRAM\\b|\\bMAMMOGRAPHY\\b|\\bDEXA\\b|\\bDXA\\b' THEN 'Mammography'
-        WHEN c.study_name REGEXP '\\bUS\\b|\\bULTRASOUND\\b|\\bUSV\\b|\\bBI US\\b|\\bOB US\\b'      THEN 'Ultrasound'
-        WHEN c.study_name REGEXP '\\bXA\\b|\\bANG\\b|\\bANGIO\\b'                                   THEN 'X-Ray Angiography'
-        WHEN c.study_name REGEXP '\\bCR\\b'                                                          THEN 'Computed Radiography'
-        WHEN c.study_name REGEXP '\\bDX\\b|\\bDR\\b|\\bXR\\b|\\bX-RAY\\b|\\bXRAY\\b|\\bXRY\\b'     THEN 'Digital Radiography'
-        WHEN c.study_name REGEXP '\\bRF\\b|\\bFL\\b|\\bFLUORO\\b|\\bFLU\\b'                         THEN 'Radio Fluoroscopy'
-        WHEN c.study_name REGEXP '\\bFS\\b'                                                          THEN 'Fundoscopy'
-        WHEN c.study_name REGEXP '\\bNM\\b'                                                          THEN 'Nuclear Medicine'
-        WHEN c.study_name REGEXP '\\bECHO\\b|\\bECHOCARDIOGRAM\\b'                                  THEN 'Echocardiography'
-        WHEN c.study_name REGEXP '\\bECG\\b|\\bEKG\\b'                                              THEN 'Electrocardiography'
-        WHEN c.study_name REGEXP '\\bEEG\\b|\\bELECTROCEPHANLOGRAM\\b'                              THEN 'Electroencephalography'
-        WHEN c.study_name REGEXP '\\bENDOSCOPY\\b'                                                  THEN 'Endoscopy'
-        WHEN c.study_name REGEXP '\\bCD\\b'                                                          THEN 'Color flow Doppler'
-        WHEN c.study_name REGEXP '\\bTCD\\b|\\bDUPLEX\\b|\\bDOPPLER\\b'                             THEN 'Duplex Doppler'
-        WHEN c.study_name REGEXP '\\bAUDIO\\b|\\bAUDIOMETRY\\b|\\bAUDITORY\\b|\\bHEARING\\b|\\bAUDIOGRAM\\b|\\bACOUSTIC\\b' THEN 'Audio'
-        WHEN c.study_name REGEXP '\\bRP\\b'                                                          THEN 'Radiotherapy Plan'
-        WHEN c.study_name REGEXP '\\bRT\\b|\\bRAD\\b|\\bIR\\b|\\bINTERVENTIONAL RADIOLOGY\\b'       THEN 'Radiographic imaging'
-        WHEN c.study_name REGEXP '\\bSPECT\\b'                                                       THEN 'Single-photon emission computed tomography (SPECT)'
-        WHEN c.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b|\\bVL\\b|\\bOHS\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b' THEN 'Other'
-        ELSE 'NS'
-    END AS modality_std,
 
+CASE
+    WHEN c.study_name REGEXP '\\bPET/CT\\b|\\bPET CT\\b'                                        THEN 'Positron Emission Tomography (PET) / Computed Tomography'
+    WHEN c.study_name REGEXP '\\bXR/RF\\b'                                                       THEN 'Digital Radiography / Radio Fluoroscopy'
+    WHEN c.study_name REGEXP '\\bUS DOPPLER\\b|\\bUS DUPLEX\\b'                                  THEN 'Ultrasound / Duplex Doppler'
+    WHEN c.study_name REGEXP '\\bUS ECHOCARDIOGRAM\\b'                                           THEN 'Ultrasound / Echocardiography'
+    WHEN c.study_name REGEXP '\\bXA US\\b'                                                       THEN 'X-Ray Angiography / Ultrasound'
+    WHEN c.study_name REGEXP '\\bCT\\b|\\bCAT\\b|\\bNCT\\b|\\bLDCT\\b|\\bCTA\\b|\\bCTV\\b|\\bCTAC\\b|\\bCTC\\b|\\bCTP\\b' THEN 'Computed Tomography'
+    WHEN c.study_name REGEXP '\\bPET\\b|\\bPT\\b'                                                THEN 'Positron Emission Tomography (PET)'
+    WHEN c.study_name REGEXP '\\bMRA\\b|\\bzzMRA\\b'                                             THEN 'Magnetic Resonance Angiography (MA - Retired) / Magnetic Resonance'
+    WHEN c.study_name REGEXP '\\bDEXA\\b|\\bDXA\\b'                                              THEN 'Bone Densitometry (X-Ray)'
+WHEN c.study_name REGEXP '\\bMAM\\b|\\bMAMM\\b|\\bMAMMO\\b|\\bMMAMMO\\b|\\bMG\\b|\\bMAMMOGRAM\\b|\\bMAMMOGRAPHY\\b'    THEN 'Mammography'
+    WHEN c.study_name REGEXP '\\bUS\\b|\\bULTRASOUND\\b|\\bUSV\\b|\\bBI US\\b|\\bOB US\\b'      THEN 'Ultrasound'
+    WHEN c.study_name REGEXP '\\bXA\\b|\\bANG\\b|\\bANGIO\\b'                                   THEN 'X-Ray Angiography'
+    WHEN c.study_name REGEXP '\\bCR\\b'                                                          THEN 'Computed Radiography'
+    WHEN c.study_name REGEXP '\\bDX\\b|\\bDR\\b|\\bXR\\b|\\bX-RAY\\b|\\bXRAY\\b|\\bXRY\\b'     THEN 'Digital Radiography'
+    WHEN c.study_name REGEXP '\\bRF\\b|\\bFL\\b|\\bFLUORO\\b|\\bFLU\\b'                         THEN 'Radio Fluoroscopy'
+    WHEN c.study_name REGEXP '\\bFS\\b'                                                          THEN 'Fundoscopy (FS - Retired) / Ophthalmic Photography'
+    WHEN c.study_name REGEXP '\\bNM\\b'                                                          THEN 'Nuclear Medicine'
+    WHEN c.study_name REGEXP '\\bECHO\\b|\\bECHOCARDIOGRAM\\b'                                  THEN 'Echocardiography (EC - Retired) / Ultrasound'
+    WHEN c.study_name REGEXP '\\bECG\\b|\\bEKG\\b'                                              THEN 'Electrocardiography'
+    WHEN c.study_name REGEXP '\\bEEG\\b|\\bELECTROCEPHANLOGRAM\\b'                              THEN 'Electroencephalography'
+    WHEN c.study_name REGEXP '\\bENDOSCOPY\\b'                                                  THEN 'Endoscopy'
+    WHEN c.study_name REGEXP '\\bCD\\b'                                                          THEN 'Color Flow Doppler (CD - Retired) / Ultrasound'
+    WHEN c.study_name REGEXP '\\bTCD\\b|\\bDUPLEX\\b|\\bDOPPLER\\b'                             THEN 'Duplex Doppler (DD - Retired) / Ultrasound'
+    WHEN c.study_name REGEXP '\\bAUDIO\\b|\\bAUDIOMETRY\\b|\\bAUDITORY\\b|\\bHEARING\\b|\\bAUDIOGRAM\\b|\\bACOUSTIC\\b' THEN 'Audio'
+    WHEN c.study_name REGEXP '\\bRP\\b'                                                          THEN 'Radiotherapy Plan'
+    WHEN c.study_name REGEXP '\\bRT\\b|\\bRAD\\b|\\bIR\\b|\\bINTERVENTIONAL RADIOLOGY\\b'       THEN 'Radiographic Imaging (RG) / Interventional Radiology'
+    WHEN c.study_name REGEXP '\\bSPECT\\b'                                                       THEN 'Single-Photon Emission Computed Tomography (ST - Retired) / Nuclear Medicine'
+    WHEN c.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b|\\bVL\\b|\\bOHS\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b' THEN 'Other'
+    ELSE 'NS'
+END AS modality_std,
+
+    
+     -- STRENGTH / VIEWS STD
+    CASE
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+\\.?[0-9]*\\s*T\\b'
+            AND UPPER(c.study_name) REGEXP 'W[/\\s]?WO|W\\s?&\\s?W/?O|W\\s?AND\\s?W/?O|WITHOUT/WITH|WITH/WITHOUT|WWO|WO/W|\\bWO\\b|\\bW/O\\b|\\bWITHOUT\\b|\\bWO CON\\b|\\bNCON\\b|\\bNO CON\\b|\\bWO C\\b|\\bWO CONTRAST\\b|\\bW CON\\b|\\bW CONTRAST\\b|\\bWITH CONTRAST\\b|\\bW C\\b|\\bW/\\b|\\bCON\\b'
+            THEN CONCAT(
+                REGEXP_SUBSTR(c.study_name, '[0-9]+\\.?[0-9]*(?=\\s*[Tt]\\b)'),
+                'T'
+            )
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+-[0-9]+\\s*V\\b'
+            THEN CONCAT(REGEXP_SUBSTR(c.study_name, '[0-9]+-[0-9]+(?=\\s*[Vv]\\b)'), ' Views')
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+\\s*V\\b'
+            THEN CONCAT(REGEXP_SUBSTR(c.study_name, '[0-9]+(?=\\s*[Vv]\\b)'), ' Views')
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+-[0-9]+\\s*VIEW.*(\\+|AND).*[0-9]+-[0-9]+\\s*VIEW|[0-9]+\\s*VIEWS?.*\\+.*[0-9]+\\s*VIEW'
+            THEN CONCAT(
+                REGEXP_SUBSTR(c.study_name, '[0-9]+-[0-9]+|[0-9]+(?=\\s*VIEWS?)'),
+                ' Views + ',
+                REGEXP_SUBSTR(c.study_name, '[0-9]+(?=\\s*VIEW)', 1, 2),
+                ' View'
+            )
+        WHEN UPPER(c.study_name) REGEXP '[><=]{1,2}\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(c.study_name, '[><=]{1,2}'),
+                REGEXP_SUBSTR(c.study_name, '[0-9]+'),
+                ' Views'
+            )
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+-[0-9]+\\s*VIEW'
+            THEN CONCAT(REGEXP_SUBSTR(c.study_name, '[0-9]+-[0-9]+'), ' Views')
+        WHEN UPPER(c.study_name) REGEXP '(MIN|MINIMUM)(\\s+OF)?\\s*(ONE|TWO|THREE|FOUR|FIVE|SIX|[0-9]+)\\s*(V\\b|VWS|VIEW|VIEWS)'
+            THEN CONCAT(
+                'Min ',
+                COALESCE(
+                    REGEXP_SUBSTR(c.study_name, '[0-9]+(?=\\s*(V\\b|VWS|VIEW|VIEWS))'),
+                    CASE
+                        WHEN UPPER(c.study_name) REGEXP 'ONE\\s*(V|VIEW|VIEWS)'   THEN '1'
+                        WHEN UPPER(c.study_name) REGEXP 'TWO\\s*(V|VIEW|VIEWS)'   THEN '2'
+                        WHEN UPPER(c.study_name) REGEXP 'THREE\\s*(V|VIEW|VIEWS)' THEN '3'
+                        WHEN UPPER(c.study_name) REGEXP 'FOUR\\s*(V|VIEW|VIEWS)'  THEN '4'
+                    END
+                ),
+                ' Views'
+            )
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+\\s*[\\+]\\s*VIEWS?|[0-9]+\\s*PLUS\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(c.study_name, '[0-9]+'), '+ Views')
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+\\s*OR\\s*MORE\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(c.study_name, '[0-9]+'), ' or More Views')
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+\\s*OR\\s*[0-9]+\\s*VIEWS?'
+            THEN CONCAT(
+                REGEXP_SUBSTR(c.study_name, '[0-9]+'),
+                ' or ',
+                REGEXP_SUBSTR(c.study_name, '[0-9]+', 1, 2),
+                ' Views'
+            )
+        WHEN UPPER(c.study_name) REGEXP '\\b(ONE|TWO|THREE|FOUR|FIVE|SIX)\\s*VIEWS?\\b'
+            THEN CONCAT(
+                CASE
+                    WHEN UPPER(c.study_name) REGEXP '\\bONE\\s*VIEWS?'   THEN '1'
+                    WHEN UPPER(c.study_name) REGEXP '\\bTWO\\s*VIEWS?'   THEN '2'
+                    WHEN UPPER(c.study_name) REGEXP '\\bTHREE\\s*VIEWS?' THEN '3'
+                    WHEN UPPER(c.study_name) REGEXP '\\bFOUR\\s*VIEWS?'  THEN '4'
+                    WHEN UPPER(c.study_name) REGEXP '\\bFIVE\\s*VIEWS?'  THEN '5'
+                    WHEN UPPER(c.study_name) REGEXP '\\bSIX\\s*VIEWS?'   THEN '6'
+                END,
+                ' Views'
+            )
+        WHEN UPPER(c.study_name) REGEXP '(LESS\\s*THAN|<)\\s*[0-9]+\\s*(V\\b|VIEW|VIEWS)'
+            THEN CONCAT(
+                'Less Than ',
+                REGEXP_SUBSTR(c.study_name, '[0-9]+(?=\\s*(V\\b|VIEW|VIEWS))'),
+                ' Views'
+            )
+        WHEN UPPER(c.study_name) REGEXP '[0-9]+\\+?\\s*VIEWS?'
+            THEN CONCAT(REGEXP_SUBSTR(c.study_name, '[0-9]+'), ' Views')
+        ELSE NULL
+    END AS strength_views_std,
+    
     -- CONTRAST TYPE STD
     CASE
         WHEN UPPER(c.study_name) REGEXP 'W[/\\s]?WO|W\\s?&\\s?W/?O|W\\s?AND\\s?W/?O|W\\s?OR\\s?W/?O|WITH\\s?AND\\s?W/?O|WO\\+W|W\\+W/?O|WITHOUT/WITH|WITH/WITHOUT|W\\s?AND\\s?WOW|WO,\\s?W|W,\\s?WO|WWO|W/W/O|WO/W|W/&W/O|W AND OR WO|W WO|W\\s?W/?O|WO\\s?W'
@@ -105,7 +185,7 @@ SELECT DISTINCT
             THEN 'Without Contrast'
         WHEN UPPER(c.study_name) REGEXP '\\bW CON\\b|\\bW CONTRAST\\b|\\bWITH CONTRAST\\b|\\bW C\\b|\\bW/\\b|\\bCON\\b'
             THEN 'With Contrast'
-        ELSE 'No Contrast Info'
+        ELSE NULL
     END AS contrast_type_std,
 
     -- BODY PART STD
@@ -231,7 +311,7 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP '\\bUNILATERAL\\b'        THEN 'Unilateral'
         WHEN UPPER(c.study_name) REGEXP '\\bLEFT\\b|\\bLT\\b'     THEN 'Left'
         WHEN UPPER(c.study_name) REGEXP '\\bRIGHT\\b|\\bRT\\b'    THEN 'Right'
-        ELSE 'NULL'
+        ELSE NULL
     END AS laterality_std,
 
     -- TRACER NAME STD
@@ -239,7 +319,7 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP 'FLORBETAPIR|AMYVID|A9591|F-?18\\s*FLORBETAPIR|18F-?FLORBETAPIR|\\[18F\\]\\s*FLORBETAPIR'    THEN 'Florbetapir F18 (Amyvid)'
         WHEN UPPER(c.study_name) REGEXP 'FLUTEMETAMOL|VIZAMYL|A9592|F-?18\\s*FLUTEMETAMOL|18F-?FLUTEMETAMOL|\\[18F\\]\\s*FLUTEMETAMOL' THEN 'Flutemetamol F18 (Vizamyl)'
         WHEN UPPER(c.study_name) REGEXP 'FLORBETABEN|NEURACEQ|A9593|F-?18\\s*FLORBETABEN|18F-?FLORBETABEN|\\[18F\\]\\s*FLORBETABEN'    THEN 'Florbetaben F18 (Neuraceq)'
-        WHEN UPPER(c.study_name) REGEXP '\\bAMYLOID\\b'                                                                                THEN 'F18 - Amyloid Tracer (Unspecified)'
+
         WHEN UPPER(c.study_name) REGEXP '\\bPIB\\b|PITTSBURGH\\s*COMPOUND|F-?18\\s*PIB|18F-?PIB'                                       THEN 'PiB F18 (Pittsburgh Compound-B)'
         WHEN UPPER(c.study_name) REGEXP 'PIFLUFOLASTAT|PYLARIFY|A9816|DCFPYL'                                                          THEN 'Piflufolastat F18 (Pylarify)'
         WHEN UPPER(c.study_name) REGEXP 'FLOTUFOLASTAT|POSLUMA|A9815|PSMA-?1007'                                                       THEN 'Flotufolastat F18 (Posluma)'
@@ -255,8 +335,9 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP 'GA-?68\\s*DOTANOC|\\bDOTANOC\\b'                                                             THEN 'Ga68-DOTANOC'
         WHEN UPPER(c.study_name) REGEXP 'GA-?68\\s*PSMA|ILLUCCIX|LOCAMETZ|\\bPSMA-?11\\b'                                             THEN 'Ga68-PSMA-11 (Illuccix/Locametz)'
         WHEN UPPER(c.study_name) REGEXP '\\bGA-?68\\b|\\[68GA\\]|68GA-?|\\bGALLIUM\\s*68\\b|\\bGALLIUM-?68\\b'                       THEN 'Ga68 - Tracer Not Specified'
-        WHEN UPPER(c.study_name) REGEXP '\\bPET\\b|\\bPET/CT\\b|\\bPET/MR\\b|\\bPET-CT\\b|\\bPET-MR\\b'                              THEN 'PET - Tracer Not Specified'
-        ELSE 'NS'
+        ELSE NULL 
     END AS tracer_name_std
 
 FROM cpt_std c;
+
+
