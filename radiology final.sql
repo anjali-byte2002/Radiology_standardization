@@ -112,7 +112,7 @@ SELECT DISTINCT
         WHEN c.study_name REGEXP '\\bRAD\\b|\\bIR\\b|\\bINTERVENTIONAL RADIOLOGY\\b'                                                                       THEN 'Radiographic Imaging (RG) / Interventional Radiology'
         WHEN c.study_name REGEXP '\\bSPECT\\b'                                                                                                              THEN 'Single-Photon Emission Computed Tomography (ST - Retired) / Nuclear Medicine'
         WHEN c.study_name REGEXP '\\bBX\\b|\\bBIOPSY\\b|\\bVL\\b|\\bOHS\\b|\\bI-123\\b|\\b1-131\\b|\\bMPI\\b'                                             THEN 'Other'
-        ELSE 'NS'
+        ELSE NULL
     END AS modality_std,
 
     -- STRENGTH / VIEWS STD
@@ -305,7 +305,7 @@ SELECT DISTINCT
         WHEN UPPER(c.study_name) REGEXP '\\bVEINS\\b|\\bVENOUS\\b'                                                                                          THEN 'Veins'
         WHEN UPPER(c.study_name) REGEXP 'WHOLE BODY'                                                                                                          THEN 'Whole Body'
         WHEN UPPER(c.study_name) REGEXP '\\bWRIST\\b|\\bWRISTS\\b|\\bWR\\b'                                                                                 THEN 'Wrist'
-        ELSE 'NS'
+        ELSE NULL
     END AS body_part_std,
 
     -- LATERALITY STD
