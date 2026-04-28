@@ -1,3 +1,5 @@
+======STANDARDIZATION ONLY======
+-- 462 + 1(null)
 WITH base AS (
     SELECT
         study_name,
@@ -353,3 +355,259 @@ SELECT DISTINCT
     END AS tracer_name_std
 
 FROM cpt_std c;
+
+
+========PROBABLE CPT CODE=========
+
+WITH cpt_clean AS (
+    SELECT distinct PROCEDURECODE, COMMONDESCRIPTION, UPPER(COMMONDESCRIPTION) AS DESC_U
+    FROM tncpa.PROCEDURECODEREFERENCE
+    WHERE
+        (
+            UPPER(COMMONDESCRIPTION) REGEXP '\\bMRI\\b|\\bMR\\b|FMRI|QMRCP|MAGNETIC RESONANCE'
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bCT\\b|\\bCAT SCAN\\b|COMPUTED TOMOGRAPHY'
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bPET\\b|POSITRON'
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bUS\\b|ULTRASOUND|ULTRASONOGRAPHY|SONOGRAM|SONOGRAPHY'
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bECHO\\b|ECHOCARDIOGRAPHY|ECHOCARDIOGRAM'
+         OR UPPER(COMMONDESCRIPTION) REGEXP 'MAMMO|MAMMOGRAM|MAMMOGRAPHY'
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bDXA\\b|BONE DENSIT|BONE MINERAL'
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bXR\\b|X-?RAY|RADIOGRAPH|RADIOGRAM|RADIOLOGIC EXAM'
+         OR UPPER(COMMONDESCRIPTION) REGEXP 'FLUORO|FLUOROSCOP'
+         OR (UPPER(COMMONDESCRIPTION) REGEXP 'ANGIOGRAPH|ARTERIOGRAM|VENOGRAM|\\bANGIO\\b'
+             AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'ANGIOPLAST|ANGIOPLST|ANGIOSCOP|ATHERECT|STENT|REVSC|REVASC|BALO ANGIO|BALLO ANGIO|ANGIO-SEAL|ANGIO-JET|ANGIOSTOMY|CATH/ANGIO')
+         OR UPPER(COMMONDESCRIPTION) REGEXP '\\bSPECT\\b|SINGLE PHOTON'
+         OR (UPPER(COMMONDESCRIPTION) REGEXP 'NUCLEAR MEDICINE|NUCLEAR MED|NUCLEAR IMAG|NUCLEAR EXAM|NUCLEAR LOCALIZ|NUCLEAR SCAN|NUCLEAR TX|NUCLEAR RX|NUCLEAR THERAPY|RADIONUCLIDE|SCINTIGRAPHY|SCINTIMAMMO|PLANAR IMAG|PLANAR W/|PLANAR SING|PLANAR MULT|GATED HEART PLANAR|TUMOR IMAGING|MYOCRD IMG'
+             AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'ANTINUCLEAR|NUCLEAR ANTI|MONONUCLEAR|NUCLEAR MATRIX|NUCLEAR CELL|EPSTEIN.*NUCLEAR|PLANAR BACK|PLANAR SEAT|NONHEMATO NUCLEAR')
+        )
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'INJECTION[,\\s]|\\bINJ[,\\s]|\\bINJ\\.|\\bINJ$|ORAL[,\\s]|INFUSION'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP '\\bMG\\b|\\bML\\b|\\bIU\\b|MG/|MCG|\\bUNIT\\b'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'ANTIBOD|ANTIGEN|ASSAY|\\bANA\\b|EPSTEIN|MATRIX PROTEIN|MONONUCLEAR'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'KNEE-SHIN|KNEE DISART|MYOELECTRON|BRACHYTX|SWITCH CT|GREIFER|ULTRA-LIGHT'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'PT DOC|NO DOC|DOC RSN|CLIN DOC|NOT PERF|CARE DOC|PT NOT DOC|PT INELIG|CLIN NOT|DOC PT|PT RECEIV|PT REAS|PT MBHT|MED REAS|MEDRSN|SRCH FOR|NO SRCH|DOC SCR|NO SCR|PHODOC|PT W/DXA'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'DEXAMETHASONE|DEXAMETHA'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP '\\bFNA BX\\b|\\bBX BREAST\\b|\\bPERQ DEV\\b|\\bBX PRST8\\b|BRAIN BIOPSY|FLUOROGUIDE|\\bFLUORO LOC\\b|FLUORO EXAM OF|MR GUIDANCE|NEEDLE LOCALIZATION'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'MR SFTY|MR SAFETY|SET UP PORT|TRANSPORT PORT|MRI COMPATIBLE|HIGH DOSE CONTRAST MRI|MR CONTRAST|ECHOCARDIOGRAPHY CONTRAST'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'INTRVASC US|INTRAVASCULAR US|\\bIV US\\b|TRURL ABLT|LOW FREQUENCY NON-THERMAL|OSTEOGEN ULTRASOUND|DIATHERMY|PACHYMETRY|SERVICES OUTSIDE US'
+        AND UPPER(COMMONDESCRIPTION) NOT REGEXP 'TBS DXA CAL|DXA ORDERED'
+),
+
+rad_unmapped AS (
+    SELECT DISTINCT
+        modality_std,
+        body_part_std,
+        contrast_type_std,
+        strength_views_std          
+    FROM kinsula_leq.radiology
+    WHERE proc_code_std     IS NULL
+      AND modality_std      IS NOT NULL
+      AND body_part_std     IS NOT NULL
+      AND contrast_type_std IS NOT NULL
+),
+
+rad_patterns AS (
+    SELECT
+        r.*,
+
+        -- MODALITY
+        CASE r.modality_std
+            WHEN 'Computed Tomography'                                                      THEN '\\bCT\\b|\\bCAT SCAN\\b'
+            WHEN 'Magnetic Resonance'                                                       THEN '\\bMRI\\b|\\bMR\\b|FMRI|QMRCP'
+            WHEN 'Magnetic Resonance Angiography (MA - Retired) / Magnetic Resonance'       THEN '\\bMRA\\b|MR ANGIO|MRI ANGIO|MR ANG'
+            WHEN 'Positron Emission Tomography (PET)'                                       THEN '\\bPET\\b'
+            WHEN 'Positron Emission Tomography (PET) / Computed Tomography'                 THEN 'PET.*CT|PET/CT'
+            WHEN 'Ultrasound'                                                               THEN '\\bUS\\b|ULTRASOUND|SONOGRAM|\\bECHO EXAM\\b'
+            WHEN 'Ultrasound / Duplex Doppler'                                              THEN 'DUPLEX|DOPPLER'
+            WHEN 'Ultrasound / Echocardiography'                                             THEN '\\bECHO\\b|\\bTTE\\b|\\bTEE\\b'
+            WHEN 'Echocardiography (EC - Retired) / Ultrasound'                             THEN '\\bECHO\\b|\\bTTE\\b|\\bTEE\\b|ECHOCARDIOGRAPHY'
+            WHEN 'Mammography'                                                              THEN 'MAMMO|MAMMOGRAM'
+            WHEN 'Bone Densitometry (X-Ray)'                                                THEN '\\bDXA\\b|BONE DENSIT|BONE MINERAL'
+            WHEN 'Digital Radiography'                                                      THEN '\\bXR\\b|X-?RAY|RADIOGR'
+            WHEN 'Computed Radiography'                                                     THEN '\\bXR\\b|X-?RAY|RADIOGR'
+            WHEN 'Digital Radiography / Radio Fluoroscopy'                                  THEN 'FLUORO|\\bXR\\b'
+            WHEN 'Radio Fluoroscopy'                                                        THEN 'FLUORO'
+            WHEN 'Nuclear Medicine'                                                         THEN 'NUCLEAR|SCINT|RADIONUCLIDE|PLANAR IMAG|PLANAR W/|PLANAR SING|PLANAR MULT|GATED HEART PLANAR|TUMOR IMAGING'
+            WHEN 'X-Ray Angiography'                                                        THEN 'ANGIOGRAPH|ARTERIOGRAM|VENOGRAM'
+            WHEN 'Single-Photon Emission Computed Tomography (ST - Retired) / Nuclear Medicine' THEN '\\bSPECT\\b|SINGLE PHOTON'
+            WHEN 'Electrocardiography'                                                      THEN '\\bECG\\b|\\bEKG\\b|ELECTROCARDIO'
+            WHEN 'Electroencephalography'                                                   THEN '\\bEEG\\b|ELECTROENCEPH'
+            ELSE NULL
+        END AS modality_rx,
+
+        -- BODY PART 
+        CASE r.body_part_std
+            WHEN 'Abdomen'                      THEN '\\bABD\\b|ABDOMEN|ABDOMINAL|\\bABDO\\b'
+            WHEN 'Abdomen, Pelvis'              THEN '(ABD|ABDOMEN).*(PELV|PELVIS)'
+            WHEN 'Chest'                        THEN '\\bCHEST\\b|\\bTHORAX\\b|\\bTHORAC\\b|\\bLUNG\\b'
+            WHEN 'Chest, Abdomen'               THEN 'CHEST.*ABD|THORAX.*ABD'
+            WHEN 'Chest, Abdomen, Pelvis'       THEN 'CHEST.*ABD.*PELV'
+            WHEN 'Pelvis'                       THEN '\\bPELV|PELVIS|PELVIC'
+            WHEN 'Head'                         THEN '\\bHEAD\\b|HEAD/BRAIN|\\bHD\\b'
+            WHEN 'Head, Neck'                   THEN '(HEAD|HD).*(NECK|NCK)|HEAD & NECK|\\bHEAD\\b|\\bNECK\\b|\\bNCK\\b'
+            WHEN 'Brain Stem'                   THEN 'BRAIN STEM|BRN STEM'
+            WHEN 'Brain'                        THEN '\\bBRAIN\\b|\\bBRN\\b|CEREBRAL|HEAD/BRAIN'
+            WHEN 'Neck'                         THEN '\\bNECK\\b|\\bNCK\\b'
+            WHEN 'Intracranial'                 THEN 'INTRACRAN|\\bICR\\b|BRAIN STEM|\\bBRAIN\\b|CEREBRAL|\\bHEAD\\b'
+            WHEN 'Extracranial'                 THEN 'EXTRACRAN|CAROTID|\\bNECK\\b|\\bNCK\\b|VERTEBRAL ART'
+            WHEN 'Cervical Spine'               THEN 'CERVICAL SPINE|\\bC-?SPINE\\b|NECK SPINE'
+            WHEN 'Thoracic Spine, Lumbar Spine' THEN 'THORACOLUMBAR|THORACO.?LUMBAR|THORACOLMB'
+            WHEN 'Lumbar Spine'                 THEN 'LUMBAR SPINE|\\bL-?SPINE\\b|L-S SPINE|LUMBOSACRAL'
+            WHEN 'Lumbar Spine, Sacrum'         THEN 'LUMBOSACRAL|LUMB.*SACR|L-S SPINE'
+            WHEN 'Spine'                        THEN '\\bSPINE\\b|SPINAL|VERTEBR|TRUNK SPINE|ENTIRE SPI'
+            WHEN 'Sacrum'                       THEN '\\bSACRUM\\b|SACRAL'
+            WHEN 'Sacrum, Coccyx'               THEN 'SACRUM TAILBONE|SACRUM.*COCCYX'
+            WHEN 'Coccyx'                       THEN 'COCCYX|TAILBONE'
+            WHEN 'Sacroiliac Joint'             THEN 'SACROILIAC|\\bSI JOINTS?\\b'
+            WHEN 'Shoulder'                     THEN 'SHOULDER'
+            WHEN 'Elbow'                        THEN 'ELBOW'
+            WHEN 'Wrist'                        THEN 'WRIST'
+            WHEN 'Hand'                         THEN '\\bHAND\\b'
+            WHEN 'Fingers'                      THEN 'FINGER'
+            WHEN 'Thumb'                        THEN 'THUMB'
+            WHEN 'Forearm'                      THEN 'FOREARM'
+            WHEN 'Humerus / Upper Arm'          THEN 'HUMERUS|UPPER ARM|\\bARM INFANT\\b'
+            WHEN 'Clavicle'                     THEN 'CLAVICLE|COLLAR BONE'
+            WHEN 'Scapula'                      THEN 'SCAPULA|SHOULDER BLADE'
+            WHEN 'Acromioclavicular Joints'     THEN 'ACROMIOCLAV|\\bAC JOINT|STRENOCLAVIC'
+            WHEN 'Hip'                          THEN '\\bHIPS?\\b'
+            WHEN 'Femur'                        THEN 'FEMUR|FEMORAL|\\bFEM\\b|THIGH'
+            WHEN 'Knee'                         THEN 'KNEES?'
+            WHEN 'Leg'                          THEN '\\bLEG\\b|LOWER LEG|LEG INFANT'
+            WHEN 'Calf'                         THEN '\\bCALF\\b'
+            WHEN 'Thigh'                        THEN 'THIGH'
+            WHEN 'Tibia, Fibula'                THEN 'TIBIA.*FIBULA|TIB.*FIB'
+            WHEN 'Ankle'                        THEN 'ANKLE'
+            WHEN 'Foot'                         THEN '\\bFOOT\\b|\\bFEET\\b|\\bHEEL\\b'
+            WHEN 'Toes'                         THEN '\\bTOE'
+            WHEN 'Upper Extremity'              THEN 'UPPER EXTREM|UPPR EXTREM|UPR EXTR|UPR EXTRM|UPPER EXT|JOINT UPR EXTR|JNT OF UPR|JOINT UPR'
+            WHEN 'Lower Extremity'              THEN 'LOWER EXTREM|LWR EXTREM|LWR EXTR|LOWER EXT|JOINT LWR EXTR|JNT OF LWR|JOINT LWR|LWR EXTRMTY'
+            WHEN 'Upper Extremity (Vascular)'   THEN '(UPPER EXTREM|UPR EXTR).*(ARTER|VEN|VASC|ANGIO)'
+            WHEN 'Lower Extremity (Vascular)'   THEN '(LOWER EXTREM|LWR EXTR).*(ARTER|VEN|VASC|ANGIO)'
+            WHEN 'Breast'                       THEN 'BREAST|BREASTS|\\bBRST\\b|MAMMARY|MAMMO'
+            WHEN 'Heart'                        THEN '\\bHEART\\b|\\bHRT\\b|CARDIAC|\\bCARD\\b|MYOCARD|HT MRI|CORONARY'
+            WHEN 'Aorta'                        THEN 'AORTA|AORTIC'
+            WHEN 'Carotid'                      THEN 'CAROTID'
+            WHEN 'Carotid, Neck'                THEN 'CAROTID'
+            WHEN 'Liver'                        THEN 'LIVER|HEPATIC'
+            WHEN 'Kidney'                       THEN 'KIDNEY|RENAL|\\bK TRANSPL\\b'
+            WHEN 'Gallbladder'                  THEN 'GALLBLADDER|BILIARY'
+            WHEN 'Pancreas'                     THEN 'PANCREA'
+            WHEN 'Spleen'                       THEN 'SPLEEN|SPLENIC'
+            WHEN 'Liver, Gallbladder, Pancreas' THEN 'HEPATOBILIARY|LIVER.*GALLBLADDER|BILE DUCTS?/PANCREAS'
+            WHEN 'Thyroid'                      THEN 'THYROID'
+            WHEN 'Thyroid, Neck'                THEN 'THYROID'
+            WHEN 'Parathyroid'                  THEN 'PARATHYRO|PARATHYRD'
+            WHEN 'Prostate / Rectal'            THEN 'PROSTATE|PRST8|RECTAL|RECTUM|TRANSRECTAL'
+            WHEN 'Uterus'                       THEN '\\bUTER|UTERINE'
+            WHEN 'Transvaginal'                 THEN 'TRANSVAG|VAGINAL'
+            WHEN 'Scrotal / Testicular'         THEN 'SCROT|TESTIC'
+            WHEN 'Eye / Orbit'                  THEN '\\bEYE\\b|ORBIT|\\bORBT\\b|OCULAR|EAR/FOSSA'
+            WHEN 'Face'                         THEN '\\bFACE\\b|FACIAL|\\bFAC\\b|MAXILLOFACIAL|MAXFAC'
+            WHEN 'Facial Bones, Sinuses'        THEN 'FACIAL BONES|MAXILLOFACIAL|(FACIAL|FAC).*SINUS'
+            WHEN 'Sinuses'                      THEN 'SINUS|NASAL'
+            WHEN 'Mandible'                     THEN 'MANDIBLE|\\bJAW\\b'
+            WHEN 'Temporomandibular Joint'      THEN '\\bTMJ\\b|TEMPOROMAND|JAW JOINT'
+            WHEN 'Mastoids'                     THEN 'MASTOID'
+            WHEN 'Temporal Bone'                THEN 'TEMPORAL BONE|TEMP BONE'
+            WHEN 'Skull'                        THEN '\\bSKULL\\b'
+            WHEN 'Internal Auditory Canal'      THEN 'INTERNAL AUDITORY|AUDITORY CANAL|\\bIAC\\b'
+            WHEN 'Pituitary'                    THEN 'PITUITARY|SELLA'
+            WHEN 'Sternum'                      THEN 'STERNUM|BREASTBONE'
+            WHEN 'Retroperitoneum'              THEN 'RETROPERITONE'
+            WHEN 'Spinal Canal'                 THEN 'SPINAL CANAL|SPINAL CORD'
+            WHEN 'Brachial Plexus'              THEN 'BRACHIAL PLEXUS|BRACHPLEX'
+            WHEN 'Whole Body'                   THEN 'WHOLE BODY|FULL BODY|WHOLBODY|WHOLEBOD'
+            WHEN 'Torso'                        THEN 'TORSO|TRUNK'
+            WHEN 'Orbit, Face, Neck'            THEN '(ORBT|ORBIT).*(FAC|FACE).*(NCK|NECK)'
+            ELSE NULL
+        END AS body_part_rx,
+
+        -- CONTRAST positive
+        CASE r.contrast_type_std
+            WHEN 'With and Without Contrast' THEN
+                'W/O ?& ?W/DYE|W/O ?AND ?W/DYE|W/O ?& ?W/CNTR|W/O ?AND ?W/CONTRAST|WITHOUT AND WITH CONTRAST|WITH AND WITHOUT CONTRAST|W/O CNTR FLWD CNTR|WO CNTRST FLWD CNTRST|W/O CONT FLWD CNTR|\\bW OR W/O DYE\\b|\\bW OR W/O CNTR\\b|W/WO DYE|\\bWWO\\b'
+            WHEN 'Without Contrast' THEN
+                'W/O DYE|W/O CNTR|W/O CONT|\\bWO DYE\\b|\\bWO CNTR\\b|\\bWO\\b|WITHOUT CONTRAST|WITHOUT DYE|\\bNO CNTR\\b|\\bNO CONTRAST\\b|\\bC-\\b'
+            WHEN 'With Contrast' THEN
+                'W/DYE|\\bW DYE\\b|W/CNTR|W/CONTRAST|WITH CONTRAST|WITH DYE|W/CAD|\\bC\\+\\b'
+            ELSE NULL
+        END AS contrast_rx,
+
+        -- CONTRAST exclusion
+        CASE r.contrast_type_std
+            WHEN 'Without Contrast' THEN
+                'W/O ?& ?W/DYE|W/O ?AND ?W/DYE|W/O ?& ?W/CNTR|WITHOUT AND WITH|WITH AND WITHOUT|W/O CNTR FLWD CNTR|WO CNTRST FLWD CNTRST|W/O CONT FLWD CNTR|W OR W/O|W/WO DYE|\\bWWO\\b|\\bC-/C\\+\\b|\\bC-\\+\\b'
+            WHEN 'With Contrast' THEN
+                'W/O ?& ?W/DYE|W/O ?AND ?W/DYE|W/O ?& ?W/CNTR|WITHOUT AND WITH|WITH AND WITHOUT|W/O CNTR FLWD CNTR|WO CNTRST FLWD CNTRST|W/O CONT FLWD CNTR|W OR W/O|W/WO DYE|\\bWWO\\b|\\bC-/C\\+\\b'
+            ELSE NULL
+        END AS contrast_exclude_rx,
+        
+        -- VIEWS regex (only for X-ray modalities)
+        CASE
+            WHEN r.modality_std NOT IN ('Digital Radiography', 'Computed Radiography',
+                                        'Digital Radiography / Radio Fluoroscopy',
+                                        'Bone Densitometry (X-Ray)')
+                THEN NULL
+            WHEN r.strength_views_std IS NULL
+                THEN NULL
+            WHEN r.strength_views_std = '2 Views'
+                THEN '\\b2 VIEWS?\\b|\\b2VWS\\b|\\b2 VW\\b|UNI 2 VIEW|BI 2 VIEW|RIBS UNI 2|2VW'
+            WHEN r.strength_views_std = '2 or 3 Views'
+                THEN '2-3 VIEWS?|2-3 VW|2/3 VWS|2/3 VW|UNI 2-3 VIEW|BI 2/3'
+            WHEN r.strength_views_std = '3 or 4 Views'
+                THEN '3-4 VIEWS?|3/4 VWS|3/4 VW|BI 3-4 VIEW'
+            ELSE NULL
+        END AS views_rx
+    FROM rad_unmapped r
+),
+
+combo_matches AS (
+    SELECT
+        p.modality_std,
+        p.body_part_std,
+        p.contrast_type_std,
+        p.strength_views_std,         
+        GROUP_CONCAT(DISTINCT SUBSTRING_INDEX(cpt.PROCEDURECODE, ',', 1)
+                     ORDER BY SUBSTRING_INDEX(cpt.PROCEDURECODE, ',', 1)
+                     SEPARATOR ',') AS probable_cpt_code,
+        COUNT(DISTINCT SUBSTRING_INDEX(cpt.PROCEDURECODE, ',', 1)) AS probable_cpt_match_count,
+        GROUP_CONCAT(DISTINCT cpt.COMMONDESCRIPTION
+                     ORDER BY cpt.COMMONDESCRIPTION
+                     SEPARATOR ' | ') AS matched_descriptions
+   FROM rad_patterns p
+    LEFT JOIN cpt_clean cpt
+           ON p.modality_rx  IS NOT NULL
+          AND p.body_part_rx IS NOT NULL
+          AND p.contrast_rx  IS NOT NULL
+          AND cpt.DESC_U REGEXP p.modality_rx
+          AND cpt.DESC_U REGEXP p.body_part_rx
+          AND cpt.DESC_U REGEXP p.contrast_rx
+          AND (p.contrast_exclude_rx IS NULL
+               OR cpt.DESC_U NOT REGEXP p.contrast_exclude_rx)
+          AND (p.views_rx IS NULL                                 
+               OR cpt.DESC_U REGEXP p.views_rx)                    
+          AND NOT (
+              (p.body_part_std = 'Brain' AND cpt.DESC_U REGEXP 'BRAIN STEM|BRN STEM')
+           OR (p.body_part_std = 'Neck'  AND cpt.DESC_U REGEXP 'NECK SPINE|ORBT/FAC/NCK|ORBIT/FACE/NECK')
+          )
+    GROUP BY p.modality_std, p.body_part_std, p.contrast_type_std, p.strength_views_std    
+)
+SELECT distinct
+    r.study_name,
+    r.modality_std,
+    r.body_part_std,
+    r.contrast_type_std,
+    r.tracer_name_std,
+    r.laterality_std,
+    r.proc_code_std,
+    m.probable_cpt_code,
+    m.probable_cpt_match_count,
+    m.matched_descriptions
+FROM kinsula_leq.radiology r
+LEFT JOIN combo_matches m
+       ON r.modality_std      = m.modality_std
+      AND r.body_part_std     = m.body_part_std
+      AND r.contrast_type_std = m.contrast_type_std
+      AND (r.strength_views_std = m.strength_views_std                          
+           OR (r.strength_views_std IS NULL AND m.strength_views_std IS NULL))   
+WHERE r.proc_code_std IS NULL;
+
